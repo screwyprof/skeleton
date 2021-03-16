@@ -2,6 +2,8 @@
 
 GOROOT=${GOROOT:-`go env GOROOT`}
 GO=${GOROOT}/bin/go
+APP_ROOT=${PWD}
+MODULE=github.com/screwyprof/skeleton
 
 # This script MUST be run from the project's root.
 
@@ -18,10 +20,11 @@ ${GO} list -f '{{.ImportPath}} {{.Name}}' ./... | # list all packages including 
 while read in; do
     import=`echo $in | cut -d " " -f 1`
     package=`echo $in | cut -d " " -f 2`
-    ls ${GOPATH}/src/${import} | grep '_test.go$' > /dev/null
+    file=${APP_ROOT}${import//$MODULE/}
+    ls ${file} | grep '_test.go$' > /dev/null
     if [ $? -eq 1 ]; then
-        echo "Generated $import/$FAKE_TEST_FILE"
-        echo "// DO NOT WRITE TESTS INTO THIS AUTO-GENERATED FILE, CREATE ANOTHER TEST FILE WITH A MEANINGFUL NAME" > ${GOPATH}/src/${import}/${FAKE_TEST_FILE}
-        echo "package ${package}" >> ${GOPATH}/src/${import}/${FAKE_TEST_FILE}
+        echo "Generated $file/$FAKE_TEST_FILE"
+        echo "// DO NOT WRITE TESTS INTO THIS AUTO-GENERATED FILE, CREATE ANOTHER TEST FILE WITH A MEANINGFUL NAME" > ${file}/${FAKE_TEST_FILE}
+        echo "package ${package}" >> ${file}/${FAKE_TEST_FILE}
     fi
 done
