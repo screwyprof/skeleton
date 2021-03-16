@@ -1,0 +1,40 @@
+{
+  "name": "Skeleton",
+  "description": "Golang App Skeleton",
+  "keywords": [
+    "go",
+    "sample",
+    "example"
+  ],
+  "website": "http://github.com/screwyprof/skeleton",
+  "repository": "http://github.com/screwyprof/skeleton",
+  "formation": {
+    "web": {
+      "quantity": 1
+    }
+  },
+  "addons": [
+    "heroku-postgresql:hobby-dev"
+  ],
+  "buildpacks": [
+      {
+        "url": "https://github.com/kr/heroku-buildpack-go.git"
+      }
+  ],
+  "scripts": {
+    "postdeploy": "migrate -path ./deploy/migrations -database $DATABASE_URL up"
+  },
+  "environments": {
+    "review": {
+      "addons": [
+        "heroku-postgresql:hobby-dev"
+      ]
+    }
+  },
+  "env": {
+    "GO_LINKER_SYMBOL": "github.com/screwyprof/skeleton/internal/pkg/app/version.AppVersion",
+    "SENTRY_DSN": {
+      "description": "Configure error reporting to Sentry"
+    }
+  }
+}

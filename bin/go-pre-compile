@@ -1,0 +1,4 @@
+#!/bin/sh
+
+mkdir -p $GOBIN
+curl -L https://github.com/golang-migrate/migrate/releases/download/v4.9.1/migrate.linux-amd64.tar.gz | tar xvz && mv migrate.linux-amd64 "$GOBIN/migrate"

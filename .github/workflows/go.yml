@@ -1,0 +1,66 @@
+name: Go
+on: [pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GO111MODULE: on
+    steps:
+    - name: Set up Go 1.16
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.16
+      id: go
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+
+    - name: Build App
+      run: |
+        make build
+
+  golangci-lint:
+    name: runner / golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v1
+      - name: golangci-lint
+        uses: reviewdog/action-golangci-lint@v1
+        # uses: docker://reviewdog/action-golangci-lint:v1 # pre-build docker image
+        with:
+          github_token: ${{ secrets.github_token }}
+
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GO111MODULE: on
+    services:
+      postgres:
+        image: postgres:12.0
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: skeleton_test
+        ports:
+          - 5432:5432
+        # needed because the postgres container does not provide a healthcheck
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - name: Set up Go 1.16
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.16
+        id: go
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/skeleton_test?sslmode=disable
+        run: |
+          mkdir -p ./tools/bin
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.9.1/migrate.linux-amd64.tar.gz | tar xvz && mv migrate.linux-amd64 ./tools/bin/migrate
+          ./tools/bin/migrate -path ./deploy/migrations -database $DATABASE_URL up
+          make test

@@ -1,0 +1,89 @@
+run:
+  deadline: 20m
+  skip-dirs-use-default: true
+
+modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+    - bodyclose
+    - deadcode
+    - depguard
+    - dogsled
+    - dupl
+    - errcheck
+    - exhaustive
+    - funlen
+    #- gochecknoinits
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goimports
+    - golint
+    - gomnd
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - lll
+    - misspell
+    - nakedret
+    - noctx
+    - nolintlint
+    - rowserrcheck
+    - scopelint
+    - staticcheck
+    - structcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - varcheck
+    - whitespace
+    - asciicheck
+    #- gochecknoglobals
+    - gocognit
+    - godot
+    - godox
+    #- goerr113
+    - nestif
+    - prealloc
+    - testpackage
+    - revive
+    #- wsl
+    - cyclop
+    - durationcheck
+    - errorlint
+    - exportloopref
+    #- forbidigo
+    #- exhaustivestruct
+    #- gci
+    - gofumpt
+    - goheader
+    - gomodguard
+    - ifshort
+    - makezero
+    - nlreturn
+    - paralleltest
+    - predeclared
+    - sqlclosecheck
+    - thelper
+    - tparallel
+    #- wrapcheck
+
+linters-settings:
+  golint:
+    min-confidence: 0
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  gofmt:
+    auto-fix: false
+  govet:
+    check-shadowing: true
+  gocyclo:
+    min-complexity: 40
