@@ -63,4 +63,11 @@ jobs:
           mkdir -p ./tools/bin
           curl -L https://github.com/golang-migrate/migrate/releases/download/v4.9.1/migrate.linux-amd64.tar.gz | tar xvz && mv migrate.linux-amd64 ./tools/bin/migrate
           ./tools/bin/migrate -path ./deploy/migrations -database $DATABASE_URL up
-          make test
+          make test-ci
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
+          fail_ci_if_error: true # optional (default = false)
+          verbose: false # optional (default = false)
