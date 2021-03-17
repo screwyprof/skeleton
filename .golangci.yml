@@ -49,7 +49,7 @@ linters:
     - gocognit
     - godot
     - godox
-    #- goerr113
+    - goerr113
     - nestif
     - prealloc
     - testpackage
@@ -86,7 +86,7 @@ linters-settings:
   govet:
     check-shadowing: true
   gocyclo:
-    min-complexity: 40
+    min-complexity: 5
   gci:
     # put imports beginning with prefix after 3rd-party packages;
     # only support one prefix

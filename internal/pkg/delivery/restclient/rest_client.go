@@ -2,6 +2,7 @@ package restclient
 
 import (
 	"encoding/json"
+	stdErrors "errors"
 	"fmt"
 	"net/http"
 
@@ -11,6 +12,8 @@ import (
 	"github.com/screwyprof/skeleton/internal/pkg/delivery/rest/req"
 	"github.com/screwyprof/skeleton/internal/pkg/delivery/rest/resp"
 )
+
+var ErrUnexpectedHTTPStatus = stdErrors.New("unexpected http status")
 
 type RESTClient struct {
 	httpClient *resty.Client
@@ -38,7 +41,7 @@ func (c *RESTClient) IssueCertificate(certificate req.IssueCertificate) (*resp.V
 	}
 
 	if r.StatusCode() != http.StatusCreated {
-		return nil, fmt.Errorf("unexpected http status %d", r.StatusCode())
+		return nil, fmt.Errorf("%w: unexpected http status %d", ErrUnexpectedHTTPStatus, r.StatusCode())
 	}
 
 	res := r.Result().(*resp.ViewCertificate)
@@ -57,7 +60,7 @@ func (c *RESTClient) ViewCertificate(certificateID string) (*resp.ViewCertificat
 	}
 
 	if r.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("unexpected http status %d", r.StatusCode())
+		return nil, fmt.Errorf("%w: unexpected http status %d", ErrUnexpectedHTTPStatus, r.StatusCode())
 	}
 
 	res := r.Result().(*resp.ViewCertificate)

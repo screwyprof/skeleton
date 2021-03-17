@@ -2,7 +2,6 @@ package handler_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/brianvoe/gofakeit/v4"
@@ -51,12 +50,11 @@ func TestCertificateViewer_Handle(t *testing.T) { // nolint:funlen
 		defer ctrl.Finish()
 
 		certificateID := gofakeit.UUID()
-		want := errors.New("some error")
 
 		queryRunner := mock.NewMockQueryRunner(ctrl)
 		queryRunner.EXPECT().
 			RunQuery(context.Background(), query.ViewCertificate{ID: certificateID}, &report.Certificate{}).
-			Return(want)
+			Return(errSomeBadThingHappened)
 
 		h := handler.NewCertificateViewer(queryRunner)
 
@@ -64,7 +62,7 @@ func TestCertificateViewer_Handle(t *testing.T) { // nolint:funlen
 		_, err := h.Handle(context.Background(), &req.ViewCertificate{CertificateID: certificateID})
 
 		// assert
-		assertCause(t, err, want)
+		assertCause(t, err, errSomeBadThingHappened)
 	})
 
 	t.Run("certificate exists, valid response returned", func(t *testing.T) {
