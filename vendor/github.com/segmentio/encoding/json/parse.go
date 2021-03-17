@@ -25,17 +25,22 @@ const (
 )
 
 func skipSpaces(b []byte) []byte {
+	b, _ = skipSpacesN(b)
+	return b
+}
+
+func skipSpacesN(b []byte) ([]byte, int) {
 	for i := range b {
 		switch b[i] {
 		case sp, ht, nl, cr:
 		default:
-			return b[i:]
+			return b[i:], i
 		}
 	}
-	return nil
+	return nil, 0
 }
 
-// parseInt parses a decimanl representation of an int64 from b.
+// parseInt parses a decimal representation of an int64 from b.
 //
 // The function is equivalent to calling strconv.ParseInt(string(b), 10, 64) but
 // it prevents Go from making a memory allocation for converting a byte slice to
@@ -366,16 +371,16 @@ func parseNumber(b []byte) (v, r []byte, err error) {
 
 func parseUnicode(b []byte) (rune, int, error) {
 	if len(b) < 4 {
-		return 0, 0, syntaxError(b, "unicode code point must have at least 4 characters")
+		return 0, len(b), syntaxError(b, "unicode code point must have at least 4 characters")
 	}
 
 	u, r, err := parseUintHex(b[:4])
 	if err != nil {
-		return 0, 0, syntaxError(b, "parsing unicode code point: %s", err)
+		return 0, 4, syntaxError(b, "parsing unicode code point: %s", err)
 	}
 
 	if len(r) != 0 {
-		return 0, 0, syntaxError(b, "invalid unicode code point")
+		return 0, 4, syntaxError(b, "invalid unicode code point")
 	}
 
 	return rune(u), 4, nil
@@ -385,50 +390,41 @@ func parseStringFast(b []byte) ([]byte, []byte, bool, error) {
 	if len(b) < 2 {
 		return nil, b[len(b):], false, unexpectedEOF(b)
 	}
-
 	if b[0] != '"' {
 		return nil, b, false, syntaxError(b, "expected '\"' at the beginning of a string value")
 	}
 
-	if i := bytes.IndexByte(b[1:], '"') + 1; i > 0 && i < len(b) {
-		if bytes.IndexByte(b[1:i], '\\') < 0 && ascii.ValidPrint(b[1:i]) {
-			return b[:i+1], b[i+1:], false, nil
-		}
+	n := bytes.IndexByte(b[1:], '"') + 2
+	if n <= 1 {
+		return nil, b[len(b):], false, syntaxError(b, "missing '\"' at the end of a string value")
+	}
+	if bytes.IndexByte(b[1:n], '\\') < 0 && ascii.ValidPrint(b[1:n]) {
+		return b[:n], b[n:], false, nil
 	}
 
-	for i := 1; i < len(b); {
-		quoteIndex := bytes.IndexByte(b[i:], '"')
-		if quoteIndex < 0 {
-			break
-		}
-		quoteIndex += i
-
-		var c byte
-		var s = b[i:quoteIndex]
-		for i := range s {
-			if c = s[i]; c < 0x20 {
-				return nil, b, false, syntaxError(b[i:quoteIndex], "invalid character '%c' in string literal", c)
-			}
-		}
-
-		escapeIndex := bytes.IndexByte(b[i:quoteIndex], '\\')
-		if escapeIndex < 0 {
-			return b[:quoteIndex+1], b[quoteIndex+1:], true, nil
-		}
-
-		if i += escapeIndex + 1; i < len(b) {
-			switch b[i] {
-			case '"', '\\', '/', 'n', 'r', 't', 'f', 'b':
-				i++
-			case 'u':
-				i++
-				_, n, err := parseUnicode(b[i:])
-				if err != nil {
-					return nil, b, false, err
+	for i := 1; i < len(b); i++ {
+		switch b[i] {
+		case '\\':
+			if i++; i < len(b) {
+				switch b[i] {
+				case '"', '\\', '/', 'n', 'r', 't', 'f', 'b':
+				case 'u':
+					_, n, err := parseUnicode(b[i+1:])
+					if err != nil {
+						return nil, b[i+1+n:], false, err
+					}
+					i += n
+				default:
+					return nil, b, false, syntaxError(b, "invalid character '%c' in string escape code", b[i])
 				}
-				i += n
-			default:
-				return nil, b, false, syntaxError(b[i:i], "invalid character '%c' in string escape code", b[i])
+			}
+
+		case '"':
+			return b[:i+1], b[i+1:], true, nil
+
+		default:
+			if b[i] < 0x20 {
+				return nil, b, false, syntaxError(b, "invalid character '%c' in string escape code", b[i])
 			}
 		}
 	}

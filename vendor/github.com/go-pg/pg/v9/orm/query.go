@@ -78,7 +78,11 @@ type Query struct {
 }
 
 func NewQuery(db DB, model ...interface{}) *Query {
-	q := &Query{ctx: context.Background()}
+	ctx := context.Background()
+	if db != nil {
+		ctx = db.Context()
+	}
+	q := &Query{ctx: ctx}
 	return q.DB(db).Model(model...)
 }
 
@@ -1528,7 +1532,7 @@ func (q *Query) isSliceModelWithData() bool {
 	return ok && m.sliceLen > 0
 }
 
-// ------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 
 type wherePKQuery struct {
 	q *Query

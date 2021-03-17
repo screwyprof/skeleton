@@ -340,6 +340,24 @@ func constructMapCodec(t reflect.Type, seen map[reflect.Type]*structType) codec 
 			encode: encoder.encodeMapStringRawMessage,
 			decode: decoder.decodeMapStringRawMessage,
 		}
+
+	case k == stringType && v == stringType:
+		return codec{
+			encode: encoder.encodeMapStringString,
+			decode: decoder.decodeMapStringString,
+		}
+
+	case k == stringType && v == stringsType:
+		return codec{
+			encode: encoder.encodeMapStringStringSlice,
+			decode: decoder.decodeMapStringStringSlice,
+		}
+
+	case k == stringType && v == boolType:
+		return codec{
+			encode: encoder.encodeMapStringBool,
+			decode: decoder.decodeMapStringBool,
+		}
 	}
 
 	kc := codec{}
@@ -675,18 +693,21 @@ func appendStructFields(fields []structField, t reflect.Type, offset uintptr, se
 	}
 
 	for i := range fields {
-		fields[i].json = encodeString(fields[i].name, 0)
-		fields[i].html = encodeString(fields[i].name, EscapeHTML)
+		name := fields[i].name
+		fields[i].json = encodeKeyFragment(name, 0)
+		fields[i].html = encodeKeyFragment(name, EscapeHTML)
 	}
 
 	sort.Slice(fields, func(i, j int) bool { return fields[i].index < fields[j].index })
 	return fields
 }
 
-func encodeString(s string, flags AppendFlags) string {
-	b := make([]byte, 0, len(s)+2)
+func encodeKeyFragment(s string, flags AppendFlags) string {
+	b := make([]byte, 1, len(s)+4)
+	b[0] = ','
 	e := encoder{flags: flags}
 	b, _ = e.encodeString(b, unsafe.Pointer(&s))
+	b = append(b, ':')
 	return *(*string)(unsafe.Pointer(&b))
 }
 
@@ -1001,13 +1022,18 @@ func uintStringsAreSorted(u0, u1 uint64) bool {
 	return string(strconv.AppendUint(b0[:0], u0, 10)) < string(strconv.AppendUint(b1[:0], u1, 10))
 }
 
-//go:nosplit
 func stringToBytes(s string) []byte {
-	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Data: ((*reflect.StringHeader)(unsafe.Pointer(&s))).Data,
+	return *(*[]byte)(unsafe.Pointer(&sliceHeader{
+		Data: *(*unsafe.Pointer)(unsafe.Pointer(&s)),
 		Len:  len(s),
 		Cap:  len(s),
 	}))
+}
+
+type sliceHeader struct {
+	Data unsafe.Pointer
+	Len  int
+	Cap  int
 }
 
 var (
@@ -1032,6 +1058,7 @@ var (
 
 	numberType     = reflect.TypeOf(json.Number(""))
 	stringType     = reflect.TypeOf("")
+	stringsType    = reflect.TypeOf([]string(nil))
 	bytesType      = reflect.TypeOf(([]byte)(nil))
 	durationType   = reflect.TypeOf(time.Duration(0))
 	timeType       = reflect.TypeOf(time.Time{})
@@ -1042,9 +1069,13 @@ var (
 	timePtrType       = reflect.PtrTo(timeType)
 	rawMessagePtrType = reflect.PtrTo(rawMessageType)
 
-	sliceInterfaceType      = reflect.TypeOf(([]interface{})(nil))
-	mapStringInterfaceType  = reflect.TypeOf((map[string]interface{})(nil))
-	mapStringRawMessageType = reflect.TypeOf((map[string]RawMessage)(nil))
+	sliceInterfaceType       = reflect.TypeOf(([]interface{})(nil))
+	sliceStringType          = reflect.TypeOf(([]interface{})(nil))
+	mapStringInterfaceType   = reflect.TypeOf((map[string]interface{})(nil))
+	mapStringRawMessageType  = reflect.TypeOf((map[string]RawMessage)(nil))
+	mapStringStringType      = reflect.TypeOf((map[string]string)(nil))
+	mapStringStringSliceType = reflect.TypeOf((map[string][]string)(nil))
+	mapStringBoolType        = reflect.TypeOf((map[string]bool)(nil))
 
 	interfaceType       = reflect.TypeOf((*interface{})(nil)).Elem()
 	jsonMarshalerType   = reflect.TypeOf((*Marshaler)(nil)).Elem()

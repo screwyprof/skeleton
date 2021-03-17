@@ -64,6 +64,11 @@ const (
 	// encoding JSON (this matches the behavior of the standard encoding/json
 	// package).
 	SortMapKeys
+
+	// TrustRawMessage is a performance optimization flag to skip value
+	// checking of raw messages. It should only be used if the values are
+	// known to be valid json (e.g., they were created by json.Unmarshal).
+	TrustRawMessage
 )
 
 // ParseFlags is a type used to represent configuration options that can be
@@ -135,6 +140,44 @@ func Append(b []byte, x interface{}, flags AppendFlags) ([]byte, error) {
 	b, err := c.encode(encoder{flags: flags}, b, p)
 	runtime.KeepAlive(x)
 	return b, err
+}
+
+// Escape is a convenience helper to construct an escaped JSON string from s.
+// The function escales HTML characters, for more control over the escape
+// behavior and to write to a pre-allocated buffer, use AppendEscape.
+func Escape(s string) []byte {
+	// +10 for extra escape characters, maybe not enough and the buffer will
+	// be reallocated.
+	b := make([]byte, 0, len(s)+10)
+	return AppendEscape(b, s, EscapeHTML)
+}
+
+// AppendEscape appends s to b with the string escaped as a JSON value.
+// This will include the starting and ending quote characters, and the
+// appropriate characters will be escaped correctly for JSON encoding.
+func AppendEscape(b []byte, s string, flags AppendFlags) []byte {
+	e := encoder{flags: flags}
+	b, _ = e.encodeString(b, unsafe.Pointer(&s))
+	return b
+}
+
+// Unescape is a convenience helper to unescape a JSON value.
+// For more control over the unescape behavior and
+// to write to a pre-allocated buffer, use AppendUnescape.
+func Unescape(s []byte) []byte {
+	b := make([]byte, 0, len(s))
+	return AppendUnescape(b, s, ParseFlags(0))
+}
+
+// AppendUnescape appends s to b with the string unescaped as a JSON value.
+// This will remove starting and ending quote characters, and the
+// appropriate characters will be escaped correctly as if JSON decoded.
+// New space will be reallocated if more space is needed.
+func AppendUnescape(b []byte, s []byte, flags ParseFlags) []byte {
+	d := decoder{flags: flags}
+	buf := new(string)
+	d.decodeString(s, unsafe.Pointer(buf))
+	return append(b, *buf...)
 }
 
 // Compact is documented at https://golang.org/pkg/encoding/json/#Compact
@@ -234,11 +277,12 @@ func Valid(data []byte) bool {
 
 // Decoder is documented at https://golang.org/pkg/encoding/json/#Decoder
 type Decoder struct {
-	reader io.Reader
-	buffer []byte
-	remain []byte
-	err    error
-	flags  ParseFlags
+	reader      io.Reader
+	buffer      []byte
+	remain      []byte
+	inputOffset int64
+	err         error
+	flags       ParseFlags
 }
 
 // NewDecoder is documented at https://golang.org/pkg/encoding/json/#NewDecoder
@@ -274,7 +318,8 @@ func (dec *Decoder) readValue() (v []byte, err error) {
 		if len(dec.remain) != 0 {
 			v, r, err = parseValue(dec.remain)
 			if err == nil {
-				dec.remain = skipSpaces(r)
+				dec.remain, n = skipSpacesN(r)
+				dec.inputOffset += int64(len(v) + n)
 				return
 			}
 			if len(r) != 0 {
@@ -305,11 +350,18 @@ func (dec *Decoder) readValue() (v []byte, err error) {
 			dec.buffer = buf
 		}
 
-		n, err = dec.reader.Read(dec.buffer[len(dec.buffer):cap(dec.buffer)])
+		n, err = io.ReadFull(dec.reader, dec.buffer[len(dec.buffer):cap(dec.buffer)])
 		if n > 0 {
 			dec.buffer = dec.buffer[:len(dec.buffer)+n]
+			if err != nil {
+				err = nil
+			}
+		} else if err == io.ErrUnexpectedEOF {
+			err = io.EOF
 		}
-		dec.remain, dec.err = skipSpaces(dec.buffer), err
+		dec.remain, n = skipSpacesN(dec.buffer)
+		dec.inputOffset += int64(n)
+		dec.err = err
 	}
 }
 
@@ -346,6 +398,13 @@ func (dec *Decoder) DontMatchCaseInsensitiveStructFields() {
 // ZeroCopy is an extension to the standard encoding/json package which enables
 // all the copy optimizations of the decoder.
 func (dec *Decoder) ZeroCopy() { dec.flags |= ZeroCopy }
+
+// InputOffset returns the input stream byte offset of the current decoder position.
+// The offset gives the location of the end of the most recently returned token
+// and the beginning of the next token.
+func (dec *Decoder) InputOffset() int64 {
+	return dec.inputOffset
+}
 
 // Encoder is documented at https://golang.org/pkg/encoding/json/#Encoder
 type Encoder struct {
@@ -420,6 +479,17 @@ func (enc *Encoder) SetSortMapKeys(on bool) {
 		enc.flags |= SortMapKeys
 	} else {
 		enc.flags &= ^SortMapKeys
+	}
+}
+
+// SetTrustRawMessage skips value checking when encoding a raw json message. It should only
+// be used if the values are known to be valid json, e.g. because they were originally created
+// by json.Unmarshal.
+func (enc *Encoder) SetTrustRawMessage(on bool) {
+	if on {
+		enc.flags |= TrustRawMessage
+	} else {
+		enc.flags &= ^TrustRawMessage
 	}
 }
 

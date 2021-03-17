@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -339,6 +339,7 @@ type App struct {
 	startTimeout time.Duration
 	stopTimeout  time.Duration
 	errorHooks   []ErrorHandler
+	validate     bool
 
 	donesMu sync.RWMutex
 	dones   []chan os.Signal
@@ -351,6 +352,9 @@ type provide struct {
 
 	// Stack trace of where this provide was made.
 	Stack fxreflect.Stack
+
+	// IsSupply is true when the Target constructor was emitted by fx.Supply.
+	IsSupply bool
 }
 
 // invoke is a single invocation request to Fx.
@@ -396,6 +400,34 @@ func (ehl errorHandlerList) HandleError(err error) {
 	}
 }
 
+// validate sets *App into validation mode without running invoked functions.
+func validate(validate bool) Option {
+	return &validateOption{
+		validate: validate,
+	}
+}
+
+type validateOption struct {
+	validate bool
+}
+
+func (o validateOption) apply(app *App) {
+	app.validate = o.validate
+}
+
+func (o validateOption) String() string {
+	return fmt.Sprintf("fx.validate(%v)", o.validate)
+}
+
+// ValidateApp validates that supplied graph would run and is not missing any dependencies. This
+// method does not invoke actual input functions.
+func ValidateApp(opts ...Option) error {
+	opts = append(opts, validate(true))
+	app := New(opts...)
+
+	return app.Err()
+}
+
 // New creates and initializes an App, immediately executing any functions
 // registered via Invoke options. See the documentation of the App struct for
 // details on the application's initialization, startup, and shutdown logic.
@@ -404,7 +436,6 @@ func New(opts ...Option) *App {
 	lc := &lifecycleWrapper{lifecycle.New(logger)}
 
 	app := &App{
-		container:    dig.New(dig.DeferAcyclicVerification()),
 		lifecycle:    lc,
 		logger:       logger,
 		startTimeout: DefaultTimeout,
@@ -414,6 +445,11 @@ func New(opts ...Option) *App {
 	for _, opt := range opts {
 		opt.apply(app)
 	}
+
+	app.container = dig.New(
+		dig.DeferAcyclicVerification(),
+		dig.DryRun(app.validate),
+	)
 
 	for _, p := range app.provides {
 		app.provide(p)
@@ -574,11 +610,18 @@ func (app *App) dotGraph() (DotGraph, error) {
 }
 
 func (app *App) provide(p provide) {
-	constructor := p.Target
 	if app.err != nil {
 		return
 	}
-	app.logger.PrintProvide(constructor)
+
+	constructor := p.Target
+
+	switch {
+	case p.IsSupply:
+		app.logger.PrintSupply(constructor)
+	default:
+		app.logger.PrintProvide(constructor)
+	}
 
 	if _, ok := constructor.(Option); ok {
 		app.err = fmt.Errorf("fx.Option should be passed to fx.New directly, "+

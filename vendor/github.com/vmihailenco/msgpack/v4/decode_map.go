@@ -187,6 +187,8 @@ func (d *Decoder) decodeMapStringInterfacePtr(ptr *map[string]interface{}) error
 	return nil
 }
 
+var errUnsupportedMapKey = errors.New("msgpack: unsupported map key")
+
 func (d *Decoder) DecodeMap() (interface{}, error) {
 	if d.decodeMapFunc != nil {
 		return d.decodeMapFunc(d)
@@ -224,6 +226,10 @@ func (d *Decoder) DecodeMap() (interface{}, error) {
 
 	keyType := reflect.TypeOf(key)
 	valueType := reflect.TypeOf(value)
+
+	if !keyType.Comparable() {
+		return nil, errUnsupportedMapKey
+	}
 
 	mapType := reflect.MapOf(keyType, valueType)
 	mapValue := reflect.MakeMap(mapType)
@@ -297,7 +303,7 @@ func decodeStructValue(d *Decoder, v reflect.Value) error {
 	}
 
 	var fields *fields
-	if d.useJSONTag {
+	if d.flags&decodeUsingJSONFlag != 0 {
 		fields = jsonStructs.Fields(v.Type())
 	} else {
 		fields = structs.Fields(v.Type())
@@ -333,7 +339,7 @@ func decodeStructValue(d *Decoder, v reflect.Value) error {
 			if err := f.DecodeValue(d, v); err != nil {
 				return err
 			}
-		} else if d.disallowUnknownFields {
+		} else if d.flags&disallowUnknownFieldsFlag != 0 {
 			return fmt.Errorf("msgpack: unknown field %q", name)
 		} else if err := d.Skip(); err != nil {
 			return err

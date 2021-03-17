@@ -23,8 +23,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"go/build"
-	"go/format"
 	"go/token"
 	"io"
 	"io/ioutil"
@@ -39,10 +37,18 @@ import (
 	"unicode"
 
 	"github.com/golang/mock/mockgen/model"
+
+	toolsimports "golang.org/x/tools/imports"
 )
 
 const (
 	gomockImportPath = "github.com/golang/mock/gomock"
+)
+
+var (
+	version = ""
+	commit  = "none"
+	date    = "unknown"
 )
 
 var (
@@ -55,20 +61,21 @@ var (
 	copyrightFile   = flag.String("copyright_file", "", "Copyright file used to add copyright header")
 
 	debugParser = flag.Bool("debug_parser", false, "Print out parser results only.")
-	version     = flag.Bool("version", false, "Print version.")
+	showVersion = flag.Bool("version", false, "Print version.")
 )
 
 func main() {
 	flag.Usage = usage
 	flag.Parse()
 
-	if *version {
+	if *showVersion {
 		printVersion()
 		return
 	}
 
 	var pkg *model.Package
 	var err error
+	var packageName string
 	if *source != "" {
 		pkg, err = sourceMode(*source)
 	} else {
@@ -76,7 +83,18 @@ func main() {
 			usage()
 			log.Fatal("Expected exactly two arguments")
 		}
-		pkg, err = reflectMode(flag.Arg(0), strings.Split(flag.Arg(1), ","))
+		packageName = flag.Arg(0)
+		if packageName == "." {
+			dir, err := os.Getwd()
+			if err != nil {
+				log.Fatalf("Get current directory failed: %v", err)
+			}
+			packageName, err = packageNameOfDir(dir)
+			if err != nil {
+				log.Fatalf("Parse package name failed: %v", err)
+			}
+		}
+		pkg, err = reflectMode(packageName, strings.Split(flag.Arg(1), ","))
 	}
 	if err != nil {
 		log.Fatalf("Loading input failed: %v", err)
@@ -114,15 +132,14 @@ func main() {
 	// "package.X" since "package" is this package). This can happen if the mock
 	// is output into an already existing package.
 	outputPackagePath := *selfPackage
-	if len(outputPackagePath) == 0 && len(*destination) > 0 {
-		dst, _ := filepath.Abs(filepath.Dir(*destination))
-		for _, prefix := range build.Default.SrcDirs() {
-			if strings.HasPrefix(dst, prefix) {
-				if rel, err := filepath.Rel(prefix, dst); err == nil {
-					outputPackagePath = rel
-					break
-				}
-			}
+	if outputPackagePath == "" && *destination != "" {
+		dstPath, err := filepath.Abs(filepath.Dir(*destination))
+		if err != nil {
+			log.Fatalf("Unable to determine destination file path: %v", err)
+		}
+		outputPackagePath, err = parsePackageImport(dstPath)
+		if err != nil {
+			log.Fatalf("Unable to determine destination file path: %v", err)
 		}
 	}
 
@@ -130,9 +147,10 @@ func main() {
 	if *source != "" {
 		g.filename = *source
 	} else {
-		g.srcPackage = flag.Arg(0)
+		g.srcPackage = packageName
 		g.srcInterfaces = flag.Arg(1)
 	}
+	g.destination = *destination
 
 	if *mockNames != "" {
 		g.mockNames = parseMockNames(*mockNames)
@@ -192,6 +210,7 @@ type generator struct {
 	indent                    string
 	mockNames                 map[string]string // may be empty
 	filename                  string            // may be empty
+	destination               string            // may be empty
 	srcPackage, srcInterfaces string            // may be empty
 	copyrightHeader           string
 
@@ -286,10 +305,12 @@ func (g *generator) Generate(pkg *model.Package, outputPkgName string, outputPac
 	}
 	sort.Strings(sortedPaths)
 
+	packagesName := createPackageMap(sortedPaths)
+
 	g.packageMap = make(map[string]string, len(im))
 	localNames := make(map[string]bool, len(im))
 	for _, pth := range sortedPaths {
-		base, ok := lookupPackageName(pth)
+		base, ok := packagesName[pth]
 		if !ok {
 			base = sanitize(path.Base(pth))
 		}
@@ -307,7 +328,7 @@ func (g *generator) Generate(pkg *model.Package, outputPkgName string, outputPac
 		}
 
 		// Avoid importing package if source pkg == output pkg
-		if pth == pkg.PkgPath && outputPkgName == pkg.Name {
+		if pth == pkg.PkgPath && outputPackagePath == pkg.PkgPath {
 			continue
 		}
 
@@ -356,7 +377,7 @@ func (g *generator) GenerateMockInterface(intf *model.Interface, outputPackagePa
 	mockType := g.mockName(intf.Name)
 
 	g.p("")
-	g.p("// %v is a mock of %v interface", mockType, intf.Name)
+	g.p("// %v is a mock of %v interface.", mockType, intf.Name)
 	g.p("type %v struct {", mockType)
 	g.in()
 	g.p("ctrl     *gomock.Controller")
@@ -365,7 +386,7 @@ func (g *generator) GenerateMockInterface(intf *model.Interface, outputPackagePa
 	g.p("}")
 	g.p("")
 
-	g.p("// %vMockRecorder is the mock recorder for %v", mockType, mockType)
+	g.p("// %vMockRecorder is the mock recorder for %v.", mockType, mockType)
 	g.p("type %vMockRecorder struct {", mockType)
 	g.in()
 	g.p("mock *%v", mockType)
@@ -378,7 +399,7 @@ func (g *generator) GenerateMockInterface(intf *model.Interface, outputPackagePa
 	// g.p("var _ %v = (*%v)(nil)", typeName, mockType)
 	// g.p("")
 
-	g.p("// New%v creates a new mock instance", mockType)
+	g.p("// New%v creates a new mock instance.", mockType)
 	g.p("func New%v(ctrl *gomock.Controller) *%v {", mockType, mockType)
 	g.in()
 	g.p("mock := &%v{ctrl: ctrl}", mockType)
@@ -389,7 +410,7 @@ func (g *generator) GenerateMockInterface(intf *model.Interface, outputPackagePa
 	g.p("")
 
 	// XXX: possible name collision here if someone has EXPECT in their interface.
-	g.p("// EXPECT returns an object that allows the caller to indicate expected use")
+	g.p("// EXPECT returns an object that allows the caller to indicate expected use.")
 	g.p("func (m *%v) EXPECT() *%vMockRecorder {", mockType, mockType)
 	g.in()
 	g.p("return m.recorder")
@@ -401,7 +422,14 @@ func (g *generator) GenerateMockInterface(intf *model.Interface, outputPackagePa
 	return nil
 }
 
+type byMethodName []*model.Method
+
+func (b byMethodName) Len() int           { return len(b) }
+func (b byMethodName) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
+func (b byMethodName) Less(i, j int) bool { return b[i].Name < b[j].Name }
+
 func (g *generator) GenerateMockMethods(mockType string, intf *model.Interface, pkgOverride string) {
+	sort.Sort(byMethodName(intf.Methods))
 	for _, m := range intf.Methods {
 		g.p("")
 		_ = g.GenerateMockMethod(mockType, m, pkgOverride)
@@ -445,7 +473,7 @@ func (g *generator) GenerateMockMethod(mockType string, m *model.Method, pkgOver
 	ia := newIdentifierAllocator(argNames)
 	idRecv := ia.allocateIdentifier("m")
 
-	g.p("// %v mocks base method", m.Name)
+	g.p("// %v mocks base method.", m.Name)
 	g.p("func (%v *%v) %v(%v)%v {", idRecv, mockType, m.Name, argString, retString)
 	g.in()
 	g.p("%s.ctrl.T.Helper()", idRecv)
@@ -513,7 +541,7 @@ func (g *generator) GenerateMockRecorderMethod(mockType string, m *model.Method)
 	ia := newIdentifierAllocator(argNames)
 	idRecv := ia.allocateIdentifier("mr")
 
-	g.p("// %v indicates an expected call of %v", m.Name, m.Name)
+	g.p("// %v indicates an expected call of %v.", m.Name, m.Name)
 	g.p("func (%s *%vMockRecorder) %v(%v) *gomock.Call {", idRecv, mockType, m.Name, argString)
 	g.in()
 	g.p("%s.mock.ctrl.T.Helper()", idRecv)
@@ -597,27 +625,43 @@ func (o identifierAllocator) allocateIdentifier(want string) string {
 
 // Output returns the generator's output, formatted in the standard Go style.
 func (g *generator) Output() []byte {
-	src, err := format.Source(g.buf.Bytes())
+	src, err := toolsimports.Process(g.destination, g.buf.Bytes(), nil)
 	if err != nil {
 		log.Fatalf("Failed to format generated source code: %s\n%s", err, g.buf.String())
 	}
 	return src
 }
 
-func lookupPackageName(importPath string) (string, bool) {
+// createPackageMap returns a map of import path to package name
+// for specified importPaths.
+func createPackageMap(importPaths []string) map[string]string {
 	var pkg struct {
-		Name string
+		Name       string
+		ImportPath string
 	}
+	pkgMap := make(map[string]string)
 	b := bytes.NewBuffer(nil)
-	cmd := exec.Command("go", "list", "-json", importPath)
+	args := []string{"list", "-json"}
+	args = append(args, importPaths...)
+	cmd := exec.Command("go", args...)
 	cmd.Stdout = b
-	err := cmd.Run()
-	if err != nil {
-		return "", false
+	cmd.Run()
+	dec := json.NewDecoder(b)
+	for dec.More() {
+		err := dec.Decode(&pkg)
+		if err != nil {
+			log.Printf("failed to decode 'go list' output: %v", err)
+			continue
+		}
+		pkgMap[pkg.ImportPath] = pkg.Name
 	}
-	err = json.Unmarshal(b.Bytes(), &pkg)
-	if err != nil {
-		return "", false
+	return pkgMap
+}
+
+func printVersion() {
+	if version != "" {
+		fmt.Printf("v%s\nCommit: %s\nDate: %s\n", version, commit, date)
+	} else {
+		printModuleVersion()
 	}
-	return pkg.Name, true
 }

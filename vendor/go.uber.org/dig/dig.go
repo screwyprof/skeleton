@@ -37,7 +37,6 @@ import (
 const (
 	_optionalTag = "optional"
 	_nameTag     = "name"
-	_groupTag    = "group"
 )
 
 // Unique identification of an object in the graph.
@@ -66,8 +65,9 @@ type provideOptions struct {
 
 func (o *provideOptions) Validate() error {
 	if len(o.Group) > 0 && len(o.Name) > 0 {
-		return fmt.Errorf(
-			"cannot use named values with value groups: name:%q provided with group:%q", o.Name, o.Group)
+		return errf(
+			"cannot use named values with value groups",
+			"name:%q provided with group:%q", o.Name, o.Group)
 	}
 
 	// Names must be representable inside a backquoted string. The only
@@ -75,10 +75,10 @@ func (o *provideOptions) Validate() error {
 	// https://golang.org/ref/spec#raw_string_lit is that they cannot contain
 	// backquotes.
 	if strings.ContainsRune(o.Name, '`') {
-		return fmt.Errorf("invalid dig.Name(%q): names cannot contain backquotes", o.Name)
+		return errf("invalid dig.Name(%q): names cannot contain backquotes", o.Name)
 	}
 	if strings.ContainsRune(o.Group, '`') {
-		return fmt.Errorf("invalid dig.Group(%q): group names cannot contain backquotes", o.Group)
+		return errf("invalid dig.Group(%q): group names cannot contain backquotes", o.Group)
 	}
 	return nil
 }
@@ -156,6 +156,9 @@ type Container struct {
 
 	// Defer acyclic check on provide until Invoke.
 	deferAcyclicVerification bool
+
+	// invokerFn calls a function with arguments provided to Provide or Invoke.
+	invokerFn invokerFn
 }
 
 // containerWriter provides write access to the Container's underlying data
@@ -195,6 +198,9 @@ type containerStore interface {
 	getGroupProviders(name string, t reflect.Type) []provider
 
 	createGraph() *dot.Graph
+
+	// Returns invokerFn function to use when calling arguments.
+	invoker() invokerFn
 }
 
 // provider encapsulates a user-provided constructor.
@@ -228,6 +234,7 @@ func New(opts ...Option) *Container {
 		values:    make(map[key]reflect.Value),
 		groups:    make(map[key][]reflect.Value),
 		rand:      rand.New(rand.NewSource(time.Now().UnixNano())),
+		invokerFn: defaultInvoker,
 	}
 
 	for _, opt := range opts {
@@ -256,6 +263,36 @@ func setRand(r *rand.Rand) Option {
 	return optionFunc(func(c *Container) {
 		c.rand = r
 	})
+}
+
+// DryRun is an Option which, when set to true, disables invocation of functions supplied to
+// Provide and Invoke. Use this to build no-op containers.
+func DryRun(dry bool) Option {
+	return optionFunc(func(c *Container) {
+		if dry {
+			c.invokerFn = dryInvoker
+		} else {
+			c.invokerFn = defaultInvoker
+		}
+	})
+}
+
+// invokerFn specifies how the container calls user-supplied functions.
+type invokerFn func(fn reflect.Value, args []reflect.Value) (results []reflect.Value)
+
+func defaultInvoker(fn reflect.Value, args []reflect.Value) []reflect.Value {
+	return fn.Call(args)
+}
+
+// Generates zero values for results without calling the supplied function.
+func dryInvoker(fn reflect.Value, _ []reflect.Value) []reflect.Value {
+	ft := fn.Type()
+	results := make([]reflect.Value, ft.NumOut())
+	for i := 0; i < ft.NumOut(); i++ {
+		results[i] = reflect.Zero(fn.Type().Out(i))
+	}
+
+	return results
 }
 
 func (c *Container) knownTypes() []reflect.Type {
@@ -309,6 +346,12 @@ func (c *Container) getProviders(k key) []provider {
 	return providers
 }
 
+// invokerFn return a function to run when calling function provided to Provide or Invoke. Used for
+// running container in dry mode.
+func (c *Container) invoker() invokerFn {
+	return c.invokerFn
+}
+
 // Provide teaches the container how to build values of one or more types and
 // expresses their dependencies.
 //
@@ -331,7 +374,7 @@ func (c *Container) Provide(constructor interface{}, opts ...ProvideOption) erro
 		return errors.New("can't provide an untyped nil")
 	}
 	if ctype.Kind() != reflect.Func {
-		return fmt.Errorf("must provide constructor function, got %v (type %v)", constructor, ctype)
+		return errf("must provide constructor function, got %v (type %v)", constructor, ctype)
 	}
 
 	var options provideOptions
@@ -365,7 +408,7 @@ func (c *Container) Invoke(function interface{}, opts ...InvokeOption) error {
 		return errors.New("can't invoke an untyped nil")
 	}
 	if ftype.Kind() != reflect.Func {
-		return fmt.Errorf("can't invoke non-function %v (type %v)", function, ftype)
+		return errf("can't invoke non-function %v (type %v)", function, ftype)
 	}
 
 	pl, err := newParamList(ftype)
@@ -393,8 +436,7 @@ func (c *Container) Invoke(function interface{}, opts ...InvokeOption) error {
 			Reason: err,
 		}
 	}
-
-	returned := reflect.ValueOf(function).Call(args)
+	returned := c.invokerFn(reflect.ValueOf(function), args)
 	if len(returned) == 0 {
 		return nil
 	}
@@ -403,6 +445,7 @@ func (c *Container) Invoke(function interface{}, opts ...InvokeOption) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -410,7 +453,7 @@ func (c *Container) verifyAcyclic() error {
 	visited := make(map[key]struct{})
 	for _, n := range c.nodes {
 		if err := detectCycles(n, c, nil /* path */, visited); err != nil {
-			return errWrapf(err, "cycle detected in dependency graph")
+			return errf("cycle detected in dependency graph", err)
 		}
 	}
 
@@ -437,7 +480,7 @@ func (c *Container) provide(ctor interface{}, opts provideOptions) error {
 
 	ctype := reflect.TypeOf(ctor)
 	if len(keys) == 0 {
-		return fmt.Errorf("%v must provide at least one non-error type", ctype)
+		return errf("%v must provide at least one non-error type", ctype)
 	}
 
 	for k := range keys {
@@ -539,9 +582,10 @@ func (cv connectionVisitor) Visit(res result) resultVisitor {
 		k := key{name: r.Name, t: r.Type}
 
 		if conflict, ok := cv.keyPaths[k]; ok {
-			*cv.err = fmt.Errorf(
-				"cannot provide %v from %v: already provided by %v",
-				k, path, conflict)
+			*cv.err = errf(
+				"cannot provide %v from %v", k, path,
+				"already provided by %v", conflict,
+			)
 			return nil
 		}
 
@@ -551,9 +595,10 @@ func (cv connectionVisitor) Visit(res result) resultVisitor {
 				cons[i] = fmt.Sprint(p.Location())
 			}
 
-			*cv.err = fmt.Errorf(
-				"cannot provide %v from %v: already provided by %v",
-				k, path, strings.Join(cons, "; "))
+			*cv.err = errf(
+				"cannot provide %v from %v", k, path,
+				"already provided by %v", strings.Join(cons, "; "),
+			)
 			return nil
 		}
 
@@ -662,12 +707,13 @@ func (n *node) Call(c containerStore) error {
 	}
 
 	receiver := newStagingContainerWriter()
-	results := reflect.ValueOf(n.ctor).Call(args)
+	results := c.invoker()(reflect.ValueOf(n.ctor), args)
 	if err := n.resultList.ExtractList(receiver, results); err != nil {
 		return errConstructorFailed{Func: n.location, Reason: err}
 	}
 	receiver.Commit(c)
 	n.called = true
+
 	return nil
 }
 
@@ -680,9 +726,10 @@ func isFieldOptional(f reflect.StructField) (bool, error) {
 
 	optional, err := strconv.ParseBool(tag)
 	if err != nil {
-		err = errWrapf(err,
+		err = errf(
 			"invalid value %q for %q tag on field %v",
-			tag, _optionalTag, f.Name)
+			tag, _optionalTag, f.Name, err)
+
 	}
 
 	return optional, err
@@ -691,7 +738,7 @@ func isFieldOptional(f reflect.StructField) (bool, error) {
 // Checks that all direct dependencies of the provided param are present in
 // the container. Returns an error if not.
 func shallowCheckDependencies(c containerStore, p param) error {
-	var missing errMissingManyTypes
+	var err errMissingTypes
 	var addMissingNodes []*dot.Param
 	walkParam(p, paramVisitorFunc(func(p param) bool {
 		ps, ok := p.(paramSingle)
@@ -700,15 +747,15 @@ func shallowCheckDependencies(c containerStore, p param) error {
 		}
 
 		if ns := c.getValueProviders(ps.Name, ps.Type); len(ns) == 0 && !ps.Optional {
-			missing = append(missing, newErrMissingType(c, key{name: ps.Name, t: ps.Type}))
+			err = append(err, newErrMissingTypes(c, key{name: ps.Name, t: ps.Type})...)
 			addMissingNodes = append(addMissingNodes, ps.DotParam()...)
 		}
 
 		return true
 	}))
 
-	if len(missing) > 0 {
-		return missing
+	if len(err) > 0 {
+		return err
 	}
 	return nil
 }
