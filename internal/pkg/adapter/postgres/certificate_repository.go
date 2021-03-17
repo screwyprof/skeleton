@@ -34,7 +34,7 @@ func (r *CertificateRepository) CertificateByID(ctx context.Context, certificate
 		return err
 	})
 	if err != nil {
-		return report.Certificate{}, err
+		return report.Certificate{}, errors.Wrap(err, "cannot fetch certificate")
 	}
 
 	c := report.Certificate{

@@ -73,7 +73,7 @@ linters:
     - sqlclosecheck
     - thelper
     - tparallel
-    #- wrapcheck
+    - wrapcheck
 
 linters-settings:
   golint:
