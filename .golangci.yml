@@ -15,7 +15,7 @@ linters:
     - errcheck
     - exhaustive
     - funlen
-    #- gochecknoinits
+    - gochecknoinits
     - goconst
     - gocritic
     - gocyclo
@@ -49,19 +49,19 @@ linters:
     - gocognit
     - godot
     - godox
-    #- goerr113
+    - goerr113
     - nestif
     - prealloc
     - testpackage
     - revive
-    #- wsl
+    - wsl
     - cyclop
     - durationcheck
     - errorlint
     - exportloopref
     #- forbidigo
     #- exhaustivestruct
-    #- gci
+    - gci
     - gofumpt
     - goheader
     - gomodguard
@@ -73,7 +73,7 @@ linters:
     - sqlclosecheck
     - thelper
     - tparallel
-    #- wrapcheck
+    - wrapcheck
 
 linters-settings:
   golint:
@@ -86,4 +86,9 @@ linters-settings:
   govet:
     check-shadowing: true
   gocyclo:
-    min-complexity: 40
+    min-complexity: 5
+  gci:
+    # put imports beginning with prefix after 3rd-party packages;
+    # only support one prefix
+    # if not set, use goimports.local-prefixes
+    local-prefixes: github.com/screwyprof/skeleton

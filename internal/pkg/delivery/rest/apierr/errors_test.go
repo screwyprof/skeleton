@@ -11,6 +11,8 @@ import (
 	"github.com/screwyprof/skeleton/internal/pkg/delivery/rest/apierr"
 )
 
+var errSomeBadThingHappened = errors.New("some error")
+
 func TestAPIError(t *testing.T) {
 	t.Parallel()
 
@@ -21,7 +23,7 @@ func TestAPIError(t *testing.T) {
 		ErrExtra: map[string]interface{}{
 			"key": "value",
 		},
-		ErrCause: errors.New("some error"),
+		ErrCause: errSomeBadThingHappened,
 	}
 
 	assert.Equal(t, err.ErrStatus, err.Status())
@@ -40,7 +42,7 @@ func TestWrap(t *testing.T) {
 		ErrCode:   apierr.BadRequest,
 		ErrMsg:    "Bad Request",
 		ErrExtra:  nil,
-		ErrCause:  errors.New("some error"),
+		ErrCause:  errSomeBadThingHappened,
 	}
 
 	got := apierr.Wrap(want.ErrCause, want.ErrCode, want.ErrExtra)

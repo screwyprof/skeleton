@@ -11,10 +11,6 @@ import (
 	"github.com/screwyprof/skeleton/internal/pkg/delivery/rest/req"
 )
 
-func init() {
-	gin.SetMode(gin.TestMode)
-}
-
 func TestViewCertificate_Bind(t *testing.T) {
 	t.Parallel()
 

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/go-pg/pg/v9"
+	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
 	"github.com/screwyprof/skeleton/internal/pkg/app/modcfg"
@@ -24,7 +25,7 @@ func Register(lifecycle fx.Lifecycle, db *pg.DB) {
 func NewDB(cfg *modcfg.Spec) (*pg.DB, error) {
 	opt, err := pg.ParseURL(cfg.PostgresDSN)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "cannot init db")
 	}
 
 	return pg.Connect(opt), nil

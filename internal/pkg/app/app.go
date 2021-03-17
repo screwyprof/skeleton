@@ -17,15 +17,15 @@ import (
 	"github.com/screwyprof/skeleton/internal/pkg/app/modzap"
 )
 
-var Module fx.Option
+var Module = newAppModule()
 
-func init() {
+func newAppModule() fx.Option {
 	cfg, err := modcfg.New()
 	if err != nil {
 		log.Fatalf("cannot init config: %v\n", err)
 	}
 
-	Module = fx.Options(
+	app := fx.Options(
 		fx.Logger(fxlogger.New(modzap.New(cfg))),
 		modcfg.Module,
 		modzap.Module,
@@ -45,4 +45,6 @@ func init() {
 		fx.Invoke(modzap.Register),
 		fx.Invoke(modsentry.Register),
 	)
+
+	return app
 }

@@ -26,6 +26,7 @@ func NewCertificateRepository(txRunner TxRunner) *CertificateRepository {
 
 func (r *CertificateRepository) CertificateByID(ctx context.Context, certificateID string) (report.Certificate, error) {
 	var row model.Certificate
+
 	err := r.txRunner.RunInTransaction(ctx, func(tx *pg.Tx) error {
 		var err error
 		row, err = r.fetchCertificate(tx, certificateID)
@@ -33,7 +34,7 @@ func (r *CertificateRepository) CertificateByID(ctx context.Context, certificate
 		return err
 	})
 	if err != nil {
-		return report.Certificate{}, err
+		return report.Certificate{}, errors.Wrap(err, "cannot fetch certificate")
 	}
 
 	c := report.Certificate{
@@ -72,11 +73,13 @@ func (r *CertificateRepository) createCertificate(tx *pg.Tx, row model.Certifica
 
 func (r *CertificateRepository) fetchCertificate(tx *pg.Tx, certificateID string) (model.Certificate, error) {
 	var row model.Certificate
+
 	err := tx.Model(&row).Where("certificate_id = ?", certificateID).Select()
 	if errors.Is(err, pg.ErrNoRows) {
 		return model.Certificate{}, errors.Wrap(
 			storage.ErrCertificateNotFound, "certificate "+certificateID+" is not found")
 	}
+
 	if err != nil {
 		return model.Certificate{}, errors.Wrap(err, "cannot fetch certificate "+certificateID)
 	}

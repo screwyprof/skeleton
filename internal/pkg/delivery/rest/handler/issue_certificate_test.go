@@ -30,8 +30,6 @@ func TestCertificateIssuer_Handle(t *testing.T) { // nolint:funlen
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		want := errors.New("some error")
-
 		rq := &req.IssueCertificate{
 			CertificateID: gofakeit.UUID(),
 			ArtistID:      gofakeit.UUID(),
@@ -49,7 +47,7 @@ func TestCertificateIssuer_Handle(t *testing.T) { // nolint:funlen
 		commandHandler := mock.NewMockCommandHandler(ctrl)
 		commandHandler.EXPECT().
 			Handle(gomock.Any(), c).
-			Return(errors.New("some error"))
+			Return(errSomeBadThingHappened)
 
 		h := handler.NewCertificateIssuer(commandHandler, nil)
 
@@ -57,7 +55,7 @@ func TestCertificateIssuer_Handle(t *testing.T) { // nolint:funlen
 		_, err := h.Handle(context.Background(), rq)
 
 		// assert
-		assertCause(t, err, want)
+		assertCause(t, err, errSomeBadThingHappened)
 	})
 
 	t.Run("certificate exists, error returned", func(t *testing.T) {
@@ -140,8 +138,6 @@ func TestCertificateIssuer_Handle(t *testing.T) { // nolint:funlen
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		want := errors.New("some error")
-
 		certificateID := gofakeit.UUID()
 
 		rq := &req.IssueCertificate{
@@ -165,7 +161,7 @@ func TestCertificateIssuer_Handle(t *testing.T) { // nolint:funlen
 		queryRunner := mock.NewMockQueryRunner(ctrl)
 		queryRunner.EXPECT().
 			RunQuery(gomock.Any(), query.ViewCertificate{ID: certificateID}, &report.Certificate{}).
-			Return(want)
+			Return(errSomeBadThingHappened)
 
 		h := handler.NewCertificateIssuer(commandHandler, queryRunner)
 
@@ -173,7 +169,7 @@ func TestCertificateIssuer_Handle(t *testing.T) { // nolint:funlen
 		_, err := h.Handle(context.Background(), rq)
 
 		// assert
-		assertCause(t, err, want)
+		assertCause(t, err, errSomeBadThingHappened)
 	})
 
 	t.Run("certificate issued successfully, valid response returned", func(t *testing.T) {
