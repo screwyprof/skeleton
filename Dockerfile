@@ -1,5 +1,5 @@
 # Start from golang base image
-FROM golang:alpine as builder
+FROM golang:1.17 as builder
 
 # Add Maintainer info
 LABEL maintainer="Maksim Shcherbo <max@happygopher.nl>"
@@ -24,7 +24,7 @@ COPY . .
 RUN BINARY=main make build-docker
 
 # Start a new stage from scratch
-FROM alpine:latest
+FROM alpine:3.14
 RUN apk --no-cache add ca-certificates
 
 WORKDIR /root/
