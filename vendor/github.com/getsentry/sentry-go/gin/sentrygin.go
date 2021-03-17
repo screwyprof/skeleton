@@ -25,8 +25,8 @@ type Options struct {
 	// as gin.Default includes it's own Recovery middleware what handles http responses.
 	Repanic bool
 	// WaitForDelivery configures whether you want to block the request before moving forward with the response.
-	// Because Gin's default `Recovery` handler doesn't restart the application,
-	// it's safe to either skip this option or set it to `false`.
+	// Because Gin's default Recovery handler doesn't restart the application,
+	// it's safe to either skip this option or set it to false.
 	WaitForDelivery bool
 	// Timeout for the event delivery requests.
 	Timeout time.Duration
@@ -35,30 +35,23 @@ type Options struct {
 // New returns a function that satisfies gin.HandlerFunc interface
 // It can be used with Use() methods.
 func New(options Options) gin.HandlerFunc {
-	handler := handler{
-		repanic:         false,
-		timeout:         time.Second * 2,
-		waitForDelivery: false,
+	timeout := options.Timeout
+	if timeout == 0 {
+		timeout = 2 * time.Second
 	}
-
-	if options.Repanic {
-		handler.repanic = true
-	}
-
-	if options.Timeout != 0 {
-		handler.timeout = options.Timeout
-	}
-
-	if options.WaitForDelivery {
-		handler.waitForDelivery = true
-	}
-
-	return handler.handle
+	return (&handler{
+		repanic:         options.Repanic,
+		timeout:         timeout,
+		waitForDelivery: options.WaitForDelivery,
+	}).handle
 }
 
 func (h *handler) handle(ctx *gin.Context) {
-	hub := sentry.CurrentHub().Clone()
-	hub.Scope().SetRequest(sentry.Request{}.FromHTTPRequest(ctx.Request))
+	hub := sentry.GetHubFromContext(ctx.Request.Context())
+	if hub == nil {
+		hub = sentry.CurrentHub().Clone()
+	}
+	hub.Scope().SetRequest(ctx.Request)
 	ctx.Set(valuesKey, hub)
 	defer h.recoverWithSentry(hub, ctx.Request)
 	ctx.Next()
@@ -81,7 +74,7 @@ func (h *handler) recoverWithSentry(hub *sentry.Hub, r *http.Request) {
 	}
 }
 
-// Check for a broken connection, as this is what Gin does already
+// Check for a broken connection, as this is what Gin does already.
 func isBrokenPipeError(err interface{}) bool {
 	if netErr, ok := err.(*net.OpError); ok {
 		if sysErr, ok := netErr.Err.(*os.SyscallError); ok {

@@ -65,7 +65,7 @@ func (m *structTableModel) AppendParam(fmter QueryFormatter, b []byte, name stri
 	}
 
 	switch name {
-	case "TableName":
+	case "TableName": //nolint:goconst
 		b = fmter.FormatQuery(b, string(m.table.FullName))
 		return b, true
 	case "TableAlias":
@@ -76,6 +76,12 @@ func (m *structTableModel) AppendParam(fmter QueryFormatter, b []byte, name stri
 		return b, true
 	case "Columns":
 		b = appendColumns(b, "", m.table.Fields)
+		return b, true
+	case "TablePKs":
+		b = appendColumns(b, m.table.Alias, m.table.PKs)
+		return b, true
+	case "PKs":
+		b = appendColumns(b, "", m.table.PKs)
 		return b, true
 	}
 
@@ -323,7 +329,7 @@ func (m *structTableModel) join(
 
 			lastJoin = j
 		} else {
-			model, err := newTableModelIndex(bind, index, rel)
+			model, err := newTableModelIndex(m.table.Type, bind, index, rel)
 			if err != nil {
 				return nil
 			}

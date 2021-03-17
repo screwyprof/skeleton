@@ -27,47 +27,47 @@ func (e encoder) encodeBool(b []byte, p unsafe.Pointer) ([]byte, error) {
 }
 
 func (e encoder) encodeInt(b []byte, p unsafe.Pointer) ([]byte, error) {
-	return strconv.AppendInt(b, int64(*(*int)(p)), 10), nil
+	return appendInt(b, int64(*(*int)(p))), nil
 }
 
 func (e encoder) encodeInt8(b []byte, p unsafe.Pointer) ([]byte, error) {
-	return strconv.AppendInt(b, int64(*(*int8)(p)), 10), nil
+	return appendInt(b, int64(*(*int8)(p))), nil
 }
 
 func (e encoder) encodeInt16(b []byte, p unsafe.Pointer) ([]byte, error) {
-	return strconv.AppendInt(b, int64(*(*int16)(p)), 10), nil
+	return appendInt(b, int64(*(*int16)(p))), nil
 }
 
 func (e encoder) encodeInt32(b []byte, p unsafe.Pointer) ([]byte, error) {
-	return strconv.AppendInt(b, int64(*(*int32)(p)), 10), nil
+	return appendInt(b, int64(*(*int32)(p))), nil
 }
 
 func (e encoder) encodeInt64(b []byte, p unsafe.Pointer) ([]byte, error) {
-	return strconv.AppendInt(b, *(*int64)(p), 10), nil
+	return appendInt(b, *(*int64)(p)), nil
 }
 
 func (e encoder) encodeUint(b []byte, p unsafe.Pointer) ([]byte, error) {
-	return strconv.AppendUint(b, uint64(*(*uint)(p)), 10), nil
+	return appendUint(b, uint64(*(*uint)(p))), nil
 }
 
 func (e encoder) encodeUintptr(b []byte, p unsafe.Pointer) ([]byte, error) {
-	return strconv.AppendUint(b, uint64(*(*uintptr)(p)), 10), nil
+	return appendUint(b, uint64(*(*uintptr)(p))), nil
 }
 
 func (e encoder) encodeUint8(b []byte, p unsafe.Pointer) ([]byte, error) {
-	return strconv.AppendUint(b, uint64(*(*uint8)(p)), 10), nil
+	return appendUint(b, uint64(*(*uint8)(p))), nil
 }
 
 func (e encoder) encodeUint16(b []byte, p unsafe.Pointer) ([]byte, error) {
-	return strconv.AppendUint(b, uint64(*(*uint16)(p)), 10), nil
+	return appendUint(b, uint64(*(*uint16)(p))), nil
 }
 
 func (e encoder) encodeUint32(b []byte, p unsafe.Pointer) ([]byte, error) {
-	return strconv.AppendUint(b, uint64(*(*uint32)(p)), 10), nil
+	return appendUint(b, uint64(*(*uint32)(p))), nil
 }
 
 func (e encoder) encodeUint64(b []byte, p unsafe.Pointer) ([]byte, error) {
-	return strconv.AppendUint(b, *(*uint64)(p), 10), nil
+	return appendUint(b, *(*uint64)(p)), nil
 }
 
 func (e encoder) encodeFloat32(b []byte, p unsafe.Pointer) ([]byte, error) {
@@ -130,11 +130,20 @@ func (e encoder) encodeNumber(b []byte, p unsafe.Pointer) ([]byte, error) {
 
 func (e encoder) encodeString(b []byte, p unsafe.Pointer) ([]byte, error) {
 	s := *(*string)(p)
+	if len(s) == 0 {
+		return append(b, `""`...), nil
+	}
 	i := 0
 	j := 0
 	escapeHTML := (e.flags & EscapeHTML) != 0
 
 	b = append(b, '"')
+
+	if len(s) >= 8 {
+		if j = escapeIndex(s, escapeHTML); j < 0 {
+			return append(append(b, s...), '"'), nil
+		}
+	}
 
 	for j < len(s) {
 		c := s[j]
@@ -467,6 +476,7 @@ func (e encoder) encodeMapStringRawMessage(b []byte, p unsafe.Pointer) ([]byte, 
 					b = append(b, ',')
 				}
 
+				// encodeString doesn't return errors so we ignore it here
 				b, _ = e.encodeString(b, unsafe.Pointer(&k))
 				b = append(b, ':')
 
@@ -525,12 +535,232 @@ func (e encoder) encodeMapStringRawMessage(b []byte, p unsafe.Pointer) ([]byte, 
 	return b, nil
 }
 
+func (e encoder) encodeMapStringString(b []byte, p unsafe.Pointer) ([]byte, error) {
+	m := *(*map[string]string)(p)
+	if m == nil {
+		return append(b, "null"...), nil
+	}
+
+	if (e.flags & SortMapKeys) == 0 {
+		// Optimized code path when the program does not need the map keys to be
+		// sorted.
+		b = append(b, '{')
+
+		if len(m) != 0 {
+			var i = 0
+
+			for k, v := range m {
+				if i != 0 {
+					b = append(b, ',')
+				}
+
+				// encodeString never returns an error so we ignore it here
+				b, _ = e.encodeString(b, unsafe.Pointer(&k))
+				b = append(b, ':')
+				b, _ = e.encodeString(b, unsafe.Pointer(&v))
+
+				i++
+			}
+		}
+
+		b = append(b, '}')
+		return b, nil
+	}
+
+	s := mapslicePool.Get().(*mapslice)
+	if cap(s.elements) < len(m) {
+		s.elements = make([]element, 0, align(10, uintptr(len(m))))
+	}
+	for key, val := range m {
+		v := val
+		s.elements = append(s.elements, element{key: key, val: &v})
+	}
+	sort.Sort(s)
+
+	b = append(b, '{')
+
+	for i, elem := range s.elements {
+		if i != 0 {
+			b = append(b, ',')
+		}
+
+		// encodeString never returns an error so we ignore it here
+		b, _ = e.encodeString(b, unsafe.Pointer(&elem.key))
+		b = append(b, ':')
+		b, _ = e.encodeString(b, unsafe.Pointer(elem.val.(*string)))
+	}
+
+	for i := range s.elements {
+		s.elements[i] = element{}
+	}
+
+	s.elements = s.elements[:0]
+	mapslicePool.Put(s)
+
+	b = append(b, '}')
+	return b, nil
+}
+
+func (e encoder) encodeMapStringStringSlice(b []byte, p unsafe.Pointer) ([]byte, error) {
+	m := *(*map[string][]string)(p)
+	if m == nil {
+		return append(b, "null"...), nil
+	}
+
+	var stringSize = unsafe.Sizeof("")
+
+	if (e.flags & SortMapKeys) == 0 {
+		// Optimized code path when the program does not need the map keys to be
+		// sorted.
+		b = append(b, '{')
+
+		if len(m) != 0 {
+			var err error
+			var i = 0
+
+			for k, v := range m {
+				if i != 0 {
+					b = append(b, ',')
+				}
+
+				b, _ = e.encodeString(b, unsafe.Pointer(&k))
+				b = append(b, ':')
+
+				b, err = e.encodeSlice(b, unsafe.Pointer(&v), stringSize, sliceStringType, encoder.encodeString)
+				if err != nil {
+					return b, err
+				}
+
+				i++
+			}
+		}
+
+		b = append(b, '}')
+		return b, nil
+	}
+
+	s := mapslicePool.Get().(*mapslice)
+	if cap(s.elements) < len(m) {
+		s.elements = make([]element, 0, align(10, uintptr(len(m))))
+	}
+	for key, val := range m {
+		v := val
+		s.elements = append(s.elements, element{key: key, val: &v})
+	}
+	sort.Sort(s)
+
+	var start = len(b)
+	var err error
+	b = append(b, '{')
+
+	for i, elem := range s.elements {
+		if i != 0 {
+			b = append(b, ',')
+		}
+
+		b, _ = e.encodeString(b, unsafe.Pointer(&elem.key))
+		b = append(b, ':')
+
+		b, err = e.encodeSlice(b, unsafe.Pointer(elem.val.(*[]string)), stringSize, sliceStringType, encoder.encodeString)
+		if err != nil {
+			break
+		}
+	}
+
+	for i := range s.elements {
+		s.elements[i] = element{}
+	}
+
+	s.elements = s.elements[:0]
+	mapslicePool.Put(s)
+
+	if err != nil {
+		return b[:start], err
+	}
+
+	b = append(b, '}')
+	return b, nil
+}
+
+func (e encoder) encodeMapStringBool(b []byte, p unsafe.Pointer) ([]byte, error) {
+	m := *(*map[string]bool)(p)
+	if m == nil {
+		return append(b, "null"...), nil
+	}
+
+	if (e.flags & SortMapKeys) == 0 {
+		// Optimized code path when the program does not need the map keys to be
+		// sorted.
+		b = append(b, '{')
+
+		if len(m) != 0 {
+			var i = 0
+
+			for k, v := range m {
+				if i != 0 {
+					b = append(b, ',')
+				}
+
+				// encodeString never returns an error so we ignore it here
+				b, _ = e.encodeString(b, unsafe.Pointer(&k))
+				if v {
+					b = append(b, ":true"...)
+				} else {
+					b = append(b, ":false"...)
+				}
+
+				i++
+			}
+		}
+
+		b = append(b, '}')
+		return b, nil
+	}
+
+	s := mapslicePool.Get().(*mapslice)
+	if cap(s.elements) < len(m) {
+		s.elements = make([]element, 0, align(10, uintptr(len(m))))
+	}
+	for key, val := range m {
+		s.elements = append(s.elements, element{key: key, val: val})
+	}
+	sort.Sort(s)
+
+	b = append(b, '{')
+
+	for i, elem := range s.elements {
+		if i != 0 {
+			b = append(b, ',')
+		}
+
+		// encodeString never returns an error so we ignore it here
+		b, _ = e.encodeString(b, unsafe.Pointer(&elem.key))
+		if elem.val.(bool) {
+			b = append(b, ":true"...)
+		} else {
+			b = append(b, ":false"...)
+		}
+	}
+
+	for i := range s.elements {
+		s.elements[i] = element{}
+	}
+
+	s.elements = s.elements[:0]
+	mapslicePool.Put(s)
+
+	b = append(b, '}')
+	return b, nil
+}
+
 func (e encoder) encodeStruct(b []byte, p unsafe.Pointer, st *structType) ([]byte, error) {
 	var start = len(b)
 	var err error
 	var k string
 	var n int
 	b = append(b, '{')
+
+	escapeHTML := (e.flags & EscapeHTML) != 0
 
 	for i := range st.fields {
 		f := &st.fields[i]
@@ -540,19 +770,19 @@ func (e encoder) encodeStruct(b []byte, p unsafe.Pointer, st *structType) ([]byt
 			continue
 		}
 
-		if n != 0 {
-			b = append(b, ',')
-		}
-
-		if (e.flags & EscapeHTML) != 0 {
+		if escapeHTML {
 			k = f.html
 		} else {
 			k = f.json
 		}
 
 		lengthBeforeKey := len(b)
-		b = append(b, k...)
-		b = append(b, ':')
+
+		if n != 0 {
+			b = append(b, k...)
+		} else {
+			b = append(b, k[1:]...)
+		}
 
 		if b, err = f.codec.encode(e, b, v); err != nil {
 			if err == (rollback{}) {
@@ -607,9 +837,16 @@ func (e encoder) encodeRawMessage(b []byte, p unsafe.Pointer) ([]byte, error) {
 		return append(b, "null"...), nil
 	}
 
-	s, _, err := parseValue(v)
-	if err != nil {
-		return b, &UnsupportedValueError{Value: reflect.ValueOf(v), Str: err.Error()}
+	var s []byte
+
+	if (e.flags & TrustRawMessage) != 0 {
+		s = v
+	} else {
+		var err error
+		s, _, err = parseValue(v)
+		if err != nil {
+			return b, &UnsupportedValueError{Value: reflect.ValueOf(v), Str: err.Error()}
+		}
 	}
 
 	if (e.flags & EscapeHTML) != 0 {

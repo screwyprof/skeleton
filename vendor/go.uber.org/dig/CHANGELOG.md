@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2020-06-16
+### Added
+- Introduce `DryRun` Option which, when set to true, disables invocation
+  of functions supplied to `Provide` and `Invoke`. This option will be
+  used to build no-op containers, for example for `fx.ValidateApp` method.
+
+## [1.9.0] - 2020-03-31
+### Added
+- GraphViz visualization of the graph now includes names of packages next to
+  constructors.
+- Added a `flatten` modifier to group tags for slices to allow providing
+  individual elements instead of the slice for a group value. See package
+  doucmentation for more information.
+
+### Changed
+- Drop library dependency on `golang.org/x/lint`.
+- Support printing multi-line error messages with `%+v`.
+
 ## [1.8.0] - 2019-11-14
 ### Changed
 - Migrated to Go modules.
@@ -147,6 +165,8 @@ First release candidate.
 
 Initial release.
 
+[1.10.0]: https://github.com/uber-go/dig/compare/v1.9.0...v1.10.0
+[1.9.0]: https://github.com/uber-go/dig/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/uber-go/dig/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/uber-go/dig/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/uber-go/dig/compare/v1.5.1...v1.6.0

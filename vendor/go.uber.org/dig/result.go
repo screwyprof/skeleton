@@ -67,21 +67,35 @@ type resultOptions struct {
 func newResult(t reflect.Type, opts resultOptions) (result, error) {
 	switch {
 	case IsIn(t) || (t.Kind() == reflect.Ptr && IsIn(t.Elem())) || embedsType(t, _inPtrType):
-		return nil, fmt.Errorf("cannot provide parameter objects: %v embeds a dig.In", t)
+		return nil, errf("cannot provide parameter objects", "%v embeds a dig.In", t)
 	case isError(t):
-		return nil, fmt.Errorf("cannot return an error here, return it from the constructor instead")
+		return nil, errf("cannot return an error here, return it from the constructor instead")
 	case IsOut(t):
 		return newResultObject(t, opts)
 	case embedsType(t, _outPtrType):
-		return nil, fmt.Errorf(
-			"cannot build a result object by embedding *dig.Out, embed dig.Out instead: "+
-				"%v embeds *dig.Out", t)
+		return nil, errf(
+			"cannot build a result object by embedding *dig.Out, embed dig.Out instead",
+			"%v embeds *dig.Out", t)
 	case t.Kind() == reflect.Ptr && IsOut(t.Elem()):
-		return nil, fmt.Errorf(
-			"cannot return a pointer to a result object, use a value instead: "+
-				"%v is a pointer to a struct that embeds dig.Out", t)
+		return nil, errf(
+			"cannot return a pointer to a result object, use a value instead",
+			"%v is a pointer to a struct that embeds dig.Out", t)
 	case len(opts.Group) > 0:
-		return resultGrouped{Type: t, Group: opts.Group}, nil
+		g, err := parseGroupString(opts.Group)
+		if err != nil {
+			return nil, errf(
+				"cannot parse group %q", opts.Group, err)
+		}
+		rg := resultGrouped{Type: t, Group: g.Name, Flatten: g.Flatten}
+		if g.Flatten {
+			if t.Kind() != reflect.Slice {
+				return nil, errf(
+					"flatten can be applied to slices only",
+					"%v is not a slice", t)
+			}
+			rg.Type = rg.Type.Elem()
+		}
+		return rg, nil
 	default:
 		return resultSingle{Type: t, Name: opts.Name}, nil
 	}
@@ -196,7 +210,7 @@ func newResultList(ctype reflect.Type, opts resultOptions) (resultList, error) {
 
 		r, err := newResult(t, opts)
 		if err != nil {
-			return rl, errWrapf(err, "bad result %d", i+1)
+			return rl, errf("bad result %d", i+1, err)
 		}
 
 		rl.Results = append(rl.Results, r)
@@ -273,13 +287,13 @@ func (ro resultObject) DotResult() []*dot.Result {
 func newResultObject(t reflect.Type, opts resultOptions) (resultObject, error) {
 	ro := resultObject{Type: t}
 	if len(opts.Name) > 0 {
-		return ro, fmt.Errorf(
-			"cannot specify a name for result objects: %v embeds dig.Out", t)
+		return ro, errf(
+			"cannot specify a name for result objects", "%v embeds dig.Out", t)
 	}
 
 	if len(opts.Group) > 0 {
-		return ro, fmt.Errorf(
-			"cannot specify a group for result objects: %v embeds dig.Out", t)
+		return ro, errf(
+			"cannot specify a group for result objects", "%v embeds dig.Out", t)
 	}
 
 	for i := 0; i < t.NumField(); i++ {
@@ -291,7 +305,7 @@ func newResultObject(t reflect.Type, opts resultOptions) (resultObject, error) {
 
 		rof, err := newResultObjectField(i, f, opts)
 		if err != nil {
-			return ro, errWrapf(err, "bad field %q of %v", f.Name, t)
+			return ro, errf("bad field %q of %v", f.Name, t, err)
 		}
 
 		ro.Fields = append(ro.Fields, rof)
@@ -335,7 +349,7 @@ func newResultObjectField(idx int, f reflect.StructField, opts resultOptions) (r
 	var r result
 	switch {
 	case f.PkgPath != "":
-		return rof, fmt.Errorf(
+		return rof, errf(
 			"unexported fields not allowed in dig.Out, did you mean to export %q (%v)?", f.Name, f.Type)
 
 	case f.Tag.Get(_groupTag) != "":
@@ -371,6 +385,11 @@ type resultGrouped struct {
 
 	// Type of value produced.
 	Type reflect.Type
+
+	// Indicates elements of a value are to be injected individually, instead of
+	// as a group. Requires the value's slice to be a group. If set, Type will be
+	// the type of individual elements rather than the group.
+	Flatten bool
 }
 
 func (rt resultGrouped) DotResult() []*dot.Result {
@@ -386,21 +405,41 @@ func (rt resultGrouped) DotResult() []*dot.Result {
 
 // newResultGrouped(f) builds a new resultGrouped from the provided field.
 func newResultGrouped(f reflect.StructField) (resultGrouped, error) {
-	rg := resultGrouped{Group: f.Tag.Get(_groupTag), Type: f.Type}
-
+	g, err := parseGroupString(f.Tag.Get(_groupTag))
+	if err != nil {
+		return resultGrouped{}, err
+	}
+	rg := resultGrouped{
+		Group:   g.Name,
+		Flatten: g.Flatten,
+		Type:    f.Type,
+	}
 	name := f.Tag.Get(_nameTag)
 	optional, _ := isFieldOptional(f)
 	switch {
+	case g.Flatten && f.Type.Kind() != reflect.Slice:
+		return rg, errf("flatten can be applied to slices only",
+			"field %q (%v) is not a slice", f.Name, f.Type)
 	case name != "":
-		return rg, fmt.Errorf(
-			"cannot use named values with value groups: name:%q provided with group:%q", name, rg.Group)
+		return rg, errf(
+			"cannot use named values with value groups",
+			"name:%q provided with group:%q", name, rg.Group)
 	case optional:
 		return rg, errors.New("value groups cannot be optional")
+	}
+	if g.Flatten {
+		rg.Type = f.Type.Elem()
 	}
 
 	return rg, nil
 }
 
 func (rt resultGrouped) Extract(cw containerWriter, v reflect.Value) {
-	cw.submitGroupedValue(rt.Group, rt.Type, v)
+	if !rt.Flatten {
+		cw.submitGroupedValue(rt.Group, rt.Type, v)
+		return
+	}
+	for i := 0; i < v.Len(); i++ {
+		cw.submitGroupedValue(rt.Group, rt.Type, v.Index(i))
+	}
 }
