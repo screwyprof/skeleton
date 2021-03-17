@@ -24,8 +24,9 @@ func NewCertificateViewer(queryRunner queryer.QueryRunner) *CertificateViewer {
 
 func (h *CertificateViewer) Handle(ctx context.Context, r *req.ViewCertificate) (*resp.ViewCertificate, error) {
 	var rep report.Certificate
-	err := h.queryRunner.RunQuery(ctx, query.ViewCertificate{ID: r.CertificateID}, &rep)
-	if err != nil {
+
+	q := query.ViewCertificate{ID: r.CertificateID}
+	if err := h.queryRunner.RunQuery(ctx, q, &rep); err != nil {
 		return nil, h.handleErr(err)
 	}
 

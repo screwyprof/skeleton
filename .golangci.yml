@@ -54,7 +54,7 @@ linters:
     - prealloc
     - testpackage
     - revive
-    #- wsl
+    - wsl
     - cyclop
     - durationcheck
     - errorlint
