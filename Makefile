@@ -39,99 +39,81 @@ LDFLAGS += -X '$(PKG)/internal/pkg/app/version.GitLog=$(GIT_LOG)'
 OK_COLOR=\033[32;01m
 NO_COLOR=\033[0m
 MAKE_COLOR=\033[33;01m%-20s\033[0m
+        
+all:  install-tools lint build test ## build, lint and test
 
-## all              : build, lint and test
-all:  install-tools lint build test
+ci-all: install-tools lint build test-ci ## run build, lint and test pipeline
 
-## ci               : run ci pipeline
-ci-all: install-tools lint build test-ci
-
-## deps             : sync go mod deps
-deps:
+deps: ## sync go mod deps
 	@echo "$(OK_COLOR)--> Download go.mod dependencies$(NO_COLOR)"
 	go mod download
 	go mod vendor
 
-## install-tools    : install dev tools, linters, code generaters, etc
-install-tools:
+install-tools: ## install dev tools, linters, code generaters, etc
 	@echo "$(OK_COLOR)--> Installing tools from tools/tools.go$(NO_COLOR)"
 	@export GOBIN=$$PWD/tools/bin; export PATH=$$GOBIN:$$PATH; cat tools/tools.go | grep _ | awk -F'"' '{print $$2}' | xargs -tI % go install %
 
-## build            : build application
-build:
+build: ## build application
 	@echo "$(OK_COLOR)--> Building application$(NO_COLOR)"
 	go build -mod=vendor -ldflags "$(LDFLAGS)" -o $(PWD)/bin/$(BINARY) $(PWD)/cmd/skeleton.go
 
-## build-docker     : build application in docker
-build-docker:
+build-docker: ## build application staically for docker
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -ldflags "-w $(LDFLAGS)" -a -o ./bin/$(BINARY)  $(PWD)/cmd/skeleton.go
 
-## build-ci         : build application with race detector
-build-ci:
+build-ci: ## build application with race detector
 	@echo "$(OK_COLOR)--> Building application$(NO_COLOR)"
 	go build -mod=vendor -race -ldflags "$(LDFLAGS)" -o $(PWD)/bin/$(BINARY) $(PWD)/cmd/skeleton.go
 
-## run              : run application locally with the given .env file
-run:
+run: # run application locally with the given .env file
 	@echo "$(OK_COLOR)--> Running application$(NO_COLOR)"
 	@(sh -ac 'source .env && go run cmd/skeleton.go')
 
-## lint             : run linters
-lint:
+lint: ## run linters
 	@echo "$(OK_COLOR)--> Running linters$(NO_COLOR)"
 	tools/bin/golangci-lint run
 
-## mock-gen         : generate mocks
-mock-gen:
+mock-gen: ## generate mocks
 	@echo "$(OK_COLOR)--> Generating mocks$(NO_COLOR)"
 	tools/bin/mockgen -source=pkg/cert/usecase/viewcert/view_certificate.go -package=mock -destination=pkg/cert/mock/cert_reporter_mock.go
 	tools/bin/mockgen -source=pkg/cert/usecase/issuecert/issue_certificate.go -package=mock -destination=pkg/cert/mock/cert_storage_mock.go
 	tools/bin/mockgen -source=vendor/github.com/screwyprof/golibs/queryer/queryer.go -package mock -destination=internal/pkg/delivery/rest/mock/queryer_mock.go
 	tools/bin/mockgen -source=vendor/github.com/screwyprof/golibs/cmdhandler/command_handler.go -package mock -destination=internal/pkg/delivery/rest/mock/command_handler_mock.go
+             
+test: test-unit test-integration test-e2e # run all tests
 
-## test             : run all tests
-test: test-unit test-integration test-e2e
-
-## test-local        : run all tests with .env config
-test-local:
-	docker-compose up -d db
+test-docker: ## run all tests in with docker-compose
+	docker-compose up --build --force-recreate --no-deps -d db
 	docker-compose up --build migrate
 	@(sh -ac 'source .env && make test')
-	docker-compose down --remove-orphans
-
-## test-unit        : run unit tests
-test-unit:
+	docker-compose down --remove-orphans --volumes
+	
+test-unit: ## run unit tests
 	@echo "$(OK_COLOR)--> Running unit tests$(NO_COLOR)"
 	go test --race --count=1 ./...
 
-## test-integration : run integration tests
-test-integration:
+test-integration: ## run integration tests
 	@echo "$(OK_COLOR)--> Running integration tests$(NO_COLOR)"
 	go test --tags "integration" --race --count=1 ./tests/integration/...
 
-## test-e2e         : run e2e tests
-test-e2e:
+test-e2e: ## run e2e tests
 	@echo "$(OK_COLOR)--> Running E2E tests$(NO_COLOR)"
 	go test --tags "acceptance" --race --count=1 ./tests/e2e/...
 
-## test-ci          : runing all tests with coverage
-test-ci:
+test-ci: ## runing all tests with coverage
 	@echo "$(OK_COLOR)--> Generating code coverage$(NO_COLOR)"
 	tools/generate-fake-tests.sh
 	tools/coverage.sh
 
-## fmt              : format go files
-fmt:
+fmt: ## format go files
 	@echo "$(OK_COLOR)--> Formatting go files$(NO_COLOR)"
 	go fmt ./...
 
-clean:
+clean: ## clean up
 	@echo "$(OK_COLOR)--> Clean up$(NO_COLOR)"
 	rm -rf $(PWD)/tools/bin
 	rm -rf $(PWD)/bin/$(BINARY)
 
-## version          : show build info
-version:
+version: ## show build info
 	@echo "$(OK_COLOR)--> Build info$(NO_COLOR)"
 	@echo "Version:           ${BINARY_VERSION}"
 	@echo "Date:              ${BUILD_DATE}"
@@ -139,9 +121,8 @@ version:
 	@echo "Git Rev:           ${GIT_REV}"
 	@echo "Git Tree State:    ${GIT_DIRTY}"
 
-## help             : show this help screen
-help : Makefile
-	@sed -n 's/^##//p' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*? "}; {printf "$(MAKE_COLOR) : %s\n", $$1, $$2}'
+help: ## show this help
+	@egrep '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "$(MAKE_COLOR) %s\n", $$1, $$2}'
 
 # To avoid unintended conflicts with file names, always add to .PHONY
 # unless there is a reason not to.
