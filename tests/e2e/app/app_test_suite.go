@@ -1,4 +1,5 @@
-//+build acceptance
+//go:build acceptance
+// +build acceptance
 
 package app
 

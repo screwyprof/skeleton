@@ -10,8 +10,8 @@ import (
 	"github.com/screwyprof/skeleton/internal/pkg/app/modcmdhdlr"
 	"github.com/screwyprof/skeleton/internal/pkg/app/modgin"
 	"github.com/screwyprof/skeleton/internal/pkg/app/modhttp"
-	"github.com/screwyprof/skeleton/internal/pkg/app/modpostgres"
 	"github.com/screwyprof/skeleton/internal/pkg/app/modqueryer"
+	"github.com/screwyprof/skeleton/internal/pkg/app/modrel"
 	"github.com/screwyprof/skeleton/internal/pkg/app/modsentry"
 	"github.com/screwyprof/skeleton/internal/pkg/app/modstorerep"
 	"github.com/screwyprof/skeleton/internal/pkg/app/modzap"
@@ -31,7 +31,7 @@ func newAppModule() fx.Option {
 		modzap.Module,
 		// modtracer.Module,
 
-		modpostgres.Module,
+		modrel.Module,
 		modstorerep.Module,
 		modqueryer.Module,
 		modcmdhdlr.Module,
@@ -40,7 +40,7 @@ func newAppModule() fx.Option {
 		modhttp.Module,
 
 		// fx.Invoke(modtracer.RegisterTracer),
-		fx.Invoke(modpostgres.Register),
+		fx.Invoke(modrel.Register),
 		fx.Invoke(modhttp.Register),
 		fx.Invoke(modzap.Register),
 		fx.Invoke(modsentry.Register),

@@ -1,10 +1,12 @@
-//+build integration
+//go:build integration
 
 package certificate_repository_test
 
 import (
+	"context"
 	"testing"
 
+	"github.com/go-rel/rel"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/screwyprof/skeleton/internal/pkg/adapter/postgres"
@@ -26,12 +28,12 @@ type TestSuite struct {
 // SetupSuite runs once on suit initialization.
 func (s *TestSuite) SetupSuite() {
 	s.TestSuite.SetupSuite()
-	s.repo = postgres.NewCertificateRepository(postgres.NewCtxTxRunner(s.DB))
+	s.repo = postgres.NewCertificateRepository(s.Repo)
 }
 
 func (s *TestSuite) certificateByID(ID string) model.Certificate {
 	var row model.Certificate
-	err := s.DB.Model(&row).Where("certificate_id = ?", ID).Select()
+	err := s.Repo.Find(context.Background(), &row, rel.Where(rel.Eq("certificate_id", ID)))
 	s.Require().NoError(err)
 	return row
 }
@@ -41,7 +43,7 @@ func (s *TestSuite) removeCertificate(certificateID string) func() {
 		c := model.Certificate{
 			CertificateID: certificateID,
 		}
-		_, err := s.DB.Model(&c).WherePK().Delete()
+		err := s.Repo.Delete(context.Background(), &c)
 		s.Require().NoError(err)
 	}
 }

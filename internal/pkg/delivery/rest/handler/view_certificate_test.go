@@ -18,7 +18,7 @@ import (
 	"github.com/screwyprof/skeleton/pkg/cert/usecase/storage"
 )
 
-func TestCertificateViewer_Handle(t *testing.T) { // nolint:funlen
+func TestCertificateViewer_Handle(t *testing.T) {
 	t.Parallel()
 
 	t.Run("certificate does not exist, error returned", func(t *testing.T) {

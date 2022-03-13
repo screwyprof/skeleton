@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ansel1/merry/v2"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 
@@ -30,7 +31,11 @@ func Register(lifecycle fx.Lifecycle, srv *http.Server, cfg *modcfg.Spec, logger
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			return srv.Shutdown(ctx)
+			if err := srv.Shutdown(ctx); err != nil {
+				return merry.Wrap(err)
+			}
+
+			return nil
 		},
 	})
 }

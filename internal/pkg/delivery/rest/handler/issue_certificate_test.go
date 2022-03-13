@@ -21,7 +21,7 @@ import (
 	"github.com/screwyprof/skeleton/pkg/cert/usecase/storage"
 )
 
-func TestCertificateIssuer_Handle(t *testing.T) { // nolint:funlen
+func TestCertificateIssuer_Handle(t *testing.T) {
 	t.Parallel()
 
 	t.Run("certificate creation error occurs, error returned", func(t *testing.T) {

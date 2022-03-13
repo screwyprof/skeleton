@@ -1,4 +1,4 @@
-//+build integration
+//go:build integration
 
 package certificate_repository_test
 
@@ -6,9 +6,7 @@ import (
 	"context"
 
 	"github.com/brianvoe/gofakeit/v4"
-	"github.com/pkg/errors"
 
-	"github.com/screwyprof/skeleton/internal/pkg/adapter/postgres"
 	"github.com/screwyprof/skeleton/pkg/cert/report"
 	"github.com/screwyprof/skeleton/pkg/cert/usecase/issuecert"
 	"github.com/screwyprof/skeleton/pkg/cert/usecase/storage"
@@ -20,21 +18,9 @@ func (s *TestSuite) TestCertificateByID_CertificateExists_CertificateReturned() 
 	s.thenValidCertificateIsReturned(want, got)
 }
 
-func (s *TestSuite) TestCertificateByID_UnknownErrorOccurs_ErrorReturned() {
-	// arrange
-	repo := postgres.NewCertificateRepository(&errTXRunner{db: s.DB})
-
-	// act
-	_, err := repo.CertificateByID(context.Background(), gofakeit.UUID())
-
-	// assert
-	s.Require().NotNil(err)
-	s.Assert().Contains(err.Error(), "cannot fetch certificate")
-}
-
 func (s *TestSuite) TestCertificateByID_CertificateDoesNotExist_ErrorReturned() {
 	_, err := s.repo.CertificateByID(context.Background(), gofakeit.UUID())
-	s.Assert().Equal(storage.ErrCertificateNotFound, errors.Cause(err))
+	s.Assert().ErrorIs(err, storage.ErrCertificateNotFound)
 }
 
 func (s *TestSuite) givenCertificateExists() report.Certificate {

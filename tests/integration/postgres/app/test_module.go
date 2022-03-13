@@ -1,4 +1,4 @@
-//+build integration
+//go:build integration
 
 package app
 
@@ -9,7 +9,7 @@ import (
 
 	"github.com/screwyprof/skeleton/internal/pkg/app/fxlogger"
 	"github.com/screwyprof/skeleton/internal/pkg/app/modcfg"
-	"github.com/screwyprof/skeleton/internal/pkg/app/modpostgres"
+	"github.com/screwyprof/skeleton/internal/pkg/app/modrel"
 	"github.com/screwyprof/skeleton/internal/pkg/app/modzap"
 )
 
@@ -24,10 +24,10 @@ func init() {
 	TestModule = fx.Options(
 		fx.Logger(fxlogger.New(modzap.New(cfg))),
 		modcfg.Module,
-		// modzap.Module,
+		modzap.Module,
 		// modtracer.Module,
 
-		modpostgres.Module,
+		modrel.Module,
 		// modstorerep.Module,
 		// modqueryer.Module,
 		// modcmdhdlr.Module,
@@ -36,7 +36,7 @@ func init() {
 		// modhttp.Module,
 
 		// fx.Invoke(modtracer.RegisterTracer),
-		fx.Invoke(modpostgres.Register),
+		fx.Invoke(modrel.Register),
 		// fx.Invoke(modhttp.Register),
 		// fx.Invoke(modzap.Register),
 		// fx.Invoke(modsentry.Register),

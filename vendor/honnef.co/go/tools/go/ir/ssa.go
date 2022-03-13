@@ -15,7 +15,7 @@ import (
 	"go/types"
 	"sync"
 
-	"golang.org/x/tools/go/types/typeutil"
+	"honnef.co/go/tools/go/types/typeutil"
 )
 
 type ID int
@@ -388,6 +388,10 @@ type functionBody struct {
 	fakeExits       BlockSet
 	blocksets       [5]BlockSet
 	hasDefer        bool
+
+	// a contiguous block of instructions that will be used by blocks,
+	// to avoid making multiple allocations.
+	scratchInstructions []Instruction
 }
 
 func (fn *Function) results() []*Alloc {
@@ -756,6 +760,20 @@ type Convert struct {
 // 	t2 = ChangeInterface <I1> t1
 //
 type ChangeInterface struct {
+	register
+	X Value
+}
+
+// The SliceToArrayPointer instruction yields the conversion of slice X to
+// array pointer.
+//
+// Pos() returns the ast.CallExpr.Lparen, if the instruction arose
+// from an explicit conversion in the source.
+//
+// Example printed form:
+// 	t1 = SliceToArrayPointer <*[4]byte> t1
+//
+type SliceToArrayPointer struct {
 	register
 	X Value
 }
@@ -1725,6 +1743,10 @@ func (v *ChangeType) Operands(rands []*Value) []*Value {
 }
 
 func (v *Convert) Operands(rands []*Value) []*Value {
+	return append(rands, &v.X)
+}
+
+func (v *SliceToArrayPointer) Operands(rands []*Value) []*Value {
 	return append(rands, &v.X)
 }
 
