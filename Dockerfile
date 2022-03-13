@@ -1,21 +1,21 @@
 # Start from golang base image
-FROM golang:1.17 as builder
+FROM golang:1.17-alpine as builder
 
-# Add Maintainer info
-LABEL maintainer="Maksim Shcherbo <max@happygopher.nl>"
+# Set the current working directory inside the container
+WORKDIR /app
 
 # Install git.
 # Git is required for fetching the dependencies.
 RUN apk update && apk add --no-cache git make
 
-# Set the current working directory inside the container
-WORKDIR /app
+# add user
+RUN adduser -D gouser && chown -R gouser /app
 
 # Copy go mod and sum files
 #COPY go.mod go.sum ./
 
 # Download all dependencies. Dependencies will be cached if the go.mod and the go.sum files are not changed
-#RUN go mod download
+#RUN go mod download && go mod vendor
 
 # Copy the source from the current directory to the working Directory inside the container
 COPY . .
@@ -24,13 +24,24 @@ COPY . .
 RUN BINARY=main make build-docker
 
 # Start a new stage from scratch
-FROM alpine:3.14
-RUN apk --no-cache add ca-certificates
+FROM scratch
+
+# Add Maintainer info
+LABEL maintainer="Maksim Shcherbo <max@happygopher.nl>"
 
 WORKDIR /root/
 
+# copy ca certs
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# copy users from builder
+COPY --from=builder /etc/passwd /etc/passwd
+
 # Copy the Pre-built binary file from the previous stage.
 COPY --from=builder /app/bin/main .
+
+# set user as as the owner of the app
+USER gouser
 
 # Expose port to the outside world
 EXPOSE 8000
