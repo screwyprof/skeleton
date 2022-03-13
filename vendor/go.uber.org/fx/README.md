@@ -7,21 +7,10 @@ An application framework for Go that:
 
 ## Installation
 
-We recommend locking to [SemVer](http://semver.org/) range `^1` using [Glide](https://github.com/Masterminds/glide):
+We recommend locking to [SemVer](http://semver.org/) range `^1` using [go mod](https://github.com/golang/go/wiki/Modules):
 
-```
-glide get 'go.uber.org/fx#^1'
-```
-
-Alternatively you can add it as a dependency using [go mod](https://github.com/golang/go/wiki/Modules):
-
-```
+```shell
 go get go.uber.org/fx@v1
-```
-
-Or by using [dep](https://github.com/golang/dep):
-```
-dep ensure -add go.uber.org/fx@1.0.0
 ```
 
 ## Stability
@@ -39,11 +28,11 @@ version of Go is supported until there are two newer major releases.
 [release-img]: https://img.shields.io/github/release/uber-go/fx.svg
 [release]: https://github.com/uber-go/fx/releases
 
-[ci-img]: https://img.shields.io/travis/uber-go/fx/master.svg
-[ci]: https://travis-ci.com/uber-go/fx/branches
+[ci-img]: https://github.com/uber-go/fx/actions/workflows/go.yml/badge.svg
+[ci]: https://github.com/uber-go/fx/actions/workflows/go.yml
 
-[cov-img]: https://codecov.io/gh/uber-go/fx/branch/dev/graph/badge.svg
-[cov]: https://codecov.io/gh/uber-go/fx/branch/dev
+[cov-img]: https://codecov.io/gh/uber-go/fx/branch/master/graph/badge.svg
+[cov]: https://codecov.io/gh/uber-go/fx/branch/master
 
 [report-card-img]: https://goreportcard.com/badge/github.com/uber-go/fx
 [report-card]: https://goreportcard.com/report/github.com/uber-go/fx

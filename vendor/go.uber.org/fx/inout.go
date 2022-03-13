@@ -162,7 +162,30 @@ import "go.uber.org/dig"
 //
 // Note that values in a value group are unordered. Fx makes no guarantees
 // about the order in which these values will be produced.
-type In struct{ dig.In }
+//
+// Unexported fields
+//
+// By default, a type that embeds fx.In may not have any unexported fields. The
+// following will return an error if used with Fx.
+//
+//   type Params struct {
+//     fx.In
+//
+//     Logger *zap.Logger
+//     mu     sync.Mutex
+//   }
+//
+// If you have need of unexported fields on such a type, you may opt-into
+// ignoring unexported fields by adding the ignore-unexported struct tag to the
+// fx.In. For example,
+//
+//   type Params struct {
+//     fx.In `ignore-unexported:"true"`
+//
+//     Logger *zap.Logger
+//     mu     sync.Mutex
+//   }
+type In = dig.In
 
 // Out is the inverse of In: it can be embedded in result structs to take
 // advantage of advanced features.
@@ -262,4 +285,4 @@ type In struct{ dig.In }
 //     Handler []int `group:"server"`         // Consume as [][]int
 //     Handler []int `group:"server,flatten"` // Consume as []int
 //   }
-type Out struct{ dig.Out }
+type Out = dig.Out

@@ -47,7 +47,6 @@ ci-all: install-tools lint build test-ci ## run build, lint and test pipeline
 deps: ## sync go mod deps
 	@echo "$(OK_COLOR)--> Download go.mod dependencies$(NO_COLOR)"
 	go mod download
-	go mod vendor
 
 install-tools: ## install dev tools, linters, code generaters, etc
 	@echo "$(OK_COLOR)--> Installing tools from tools/tools.go$(NO_COLOR)"
@@ -55,14 +54,14 @@ install-tools: ## install dev tools, linters, code generaters, etc
 
 build: ## build application
 	@echo "$(OK_COLOR)--> Building application$(NO_COLOR)"
-	go build -mod=vendor -ldflags "$(LDFLAGS)" -o $(PWD)/bin/$(BINARY) $(PWD)/cmd/skeleton.go
+	go build -ldflags "$(LDFLAGS)" -o $(PWD)/bin/$(BINARY) $(PWD)/cmd/skeleton.go
 
 build-docker: ## build application staically for docker
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -ldflags "-w $(LDFLAGS)" -a -o ./bin/$(BINARY)  $(PWD)/cmd/skeleton.go
 
 build-ci: ## build application with race detector
 	@echo "$(OK_COLOR)--> Building application$(NO_COLOR)"
-	go build -mod=vendor -race -ldflags "$(LDFLAGS)" -o $(PWD)/bin/$(BINARY) $(PWD)/cmd/skeleton.go
+	go build -race -ldflags "$(LDFLAGS)" -o $(PWD)/bin/$(BINARY) $(PWD)/cmd/skeleton.go
 
 run: # run application locally with the given .env file
 	@echo "$(OK_COLOR)--> Running application$(NO_COLOR)"
@@ -83,7 +82,7 @@ test: test-unit test-integration test-e2e # run all tests
 
 test-docker: ## run all tests in with docker-compose
 	docker-compose up --build --force-recreate --no-deps -d db
-	docker-compose up --build migrate
+	docker-compose run migrate
 	@(sh -ac 'source .env && make test')
 	docker-compose down --remove-orphans --volumes
 	

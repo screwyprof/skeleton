@@ -23,7 +23,6 @@ package fx
 import (
 	"fmt"
 	"os"
-	"syscall"
 )
 
 // Shutdowner provides a method that can manually trigger the shutdown of the
@@ -45,9 +44,12 @@ type shutdowner struct {
 }
 
 // Shutdown broadcasts a signal to all of the application's Done channels
-// and begins the Stop process.
+// and begins the Stop process. Applications can be shut down only after they
+// have finished starting up.
+// In practice this means Shutdowner.Shutdown should not be called from an
+// fx.Invoke, but from a fx.Lifecycle.OnStart hook.
 func (s *shutdowner) Shutdown(opts ...ShutdownOption) error {
-	return s.app.broadcastSignal(syscall.SIGTERM)
+	return s.app.broadcastSignal(_sigTERM)
 }
 
 func (app *App) shutdowner() Shutdowner {
@@ -55,8 +57,10 @@ func (app *App) shutdowner() Shutdowner {
 }
 
 func (app *App) broadcastSignal(signal os.Signal) error {
-	app.donesMu.RLock()
-	defer app.donesMu.RUnlock()
+	app.donesMu.Lock()
+	defer app.donesMu.Unlock()
+
+	app.shutdownSig = signal
 
 	var unsent int
 	for _, done := range app.dones {

@@ -1,31 +1,32 @@
-version: '3'
+version: '3.9'
 services:
   db:
     container_name: skeleton-db
-    image: postgres:12.6-alpine
+    image: postgres:14-alpine
+    command: ["postgres", "-c", "log_statement=all", "-c", "log_destination=stderr"]
+    restart: always
     environment:
       - POSTGRES_DB=skeleton
-      - DATABASE_HOST=database
-      - POSTGRES_HOST_AUTH_METHOD=trust
+      - POSTGRES_USER=docker
+      - POSTGRES_PASSWORD=docker
     ports:
-      - 5432:5432
+      - "5432:5432"
     volumes:
       - skeleton-data:/var/lib/postgresql/data
-    networks:
-      skeleton:
-        aliases:
-          - database
+    healthcheck:
+      test: "pg_isready -U postgres -d artwork"
+      interval: 10s
+      timeout: 5s
+      retries: 5
   migrate:
-    build:
-      context: ./deploy
-      dockerfile: Dockerfile
+    container_name: skeleton-migrate
+    image: migrate/migrate
     volumes:
-       - ./deploy/migrations:/migrate/migrations
-    command: ["-path", "/migrate/migrations", "-database",  "postgres://postgres:@database:5432/skeleton?sslmode=disable", "up"]
+       - ./deploy/migrations:/migrations
+    command: ["-path", "/migrations", "-database",  "postgres://docker:docker@db:5432/skeleton?sslmode=disable", "up"]
     depends_on:
-      - db
-    networks:
-      - skeleton
+      db:
+        condition: service_healthy
   app:
     container_name: skeleton-app
     env_file:
@@ -34,14 +35,9 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - 8000:8000
+      - "8000:8000"
     depends_on:
-      - db
-    networks:
-      skeleton:
-
-networks:
-  skeleton:
-
+      db:
+        condition: service_healthy
 volumes:
     skeleton-data:

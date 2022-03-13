@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2019-2021 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,10 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
 
+	"go.uber.org/dig/internal/digerror"
 	"go.uber.org/dig/internal/dot"
 )
 
@@ -42,11 +45,11 @@ import (
 type param interface {
 	fmt.Stringer
 
-	// Builds this dependency and any of its dependencies from the provided
+	// Build this dependency and any of its dependencies from the provided
 	// Container.
 	//
 	// This MAY panic if the param does not produce a single value.
-	Build(containerStore) (reflect.Value, error)
+	Build(store containerStore, decorating bool) (reflect.Value, error)
 
 	// DotParam returns a slice of dot.Param(s).
 	DotParam() []*dot.Param
@@ -61,12 +64,12 @@ var (
 
 // newParam builds a param from the given type. If the provided type is a
 // dig.In struct, an paramObject will be returned.
-func newParam(t reflect.Type) (param, error) {
+func newParam(t reflect.Type, c containerStore) (param, error) {
 	switch {
 	case IsOut(t) || (t.Kind() == reflect.Ptr && IsOut(t.Elem())) || embedsType(t, _outPtrType):
 		return nil, errf("cannot depend on result objects", "%v embeds a dig.Out", t)
 	case IsIn(t):
-		return newParamObject(t)
+		return newParamObject(t, c)
 	case embedsType(t, _inPtrType):
 		return nil, errf(
 			"cannot build a parameter object by embedding *dig.In, embed dig.In instead",
@@ -77,65 +80,6 @@ func newParam(t reflect.Type) (param, error) {
 			"%v is a pointer to a struct that embeds dig.In", t)
 	default:
 		return paramSingle{Type: t}, nil
-	}
-}
-
-// paramVisitor visits every param in a param tree, allowing tracking state at
-// each level.
-type paramVisitor interface {
-	// Visit is called on the param being visited.
-	//
-	// If Visit returns a non-nil paramVisitor, that paramVisitor visits all
-	// the child params of this param.
-	Visit(param) paramVisitor
-
-	// We can implement AnnotateWithField and AnnotateWithPosition like
-	// resultVisitor if we need to track that information in the future.
-}
-
-// paramVisitorFunc is a paramVisitor that visits param in a tree with the
-// return value deciding whether the descendants of this param should be
-// recursed into.
-type paramVisitorFunc func(param) (recurse bool)
-
-func (f paramVisitorFunc) Visit(p param) paramVisitor {
-	if f(p) {
-		return f
-	}
-	return nil
-}
-
-// walkParam walks the param tree for the given param with the provided
-// visitor.
-//
-// paramVisitor.Visit will be called on the provided param and if a non-nil
-// paramVisitor is received, this param's descendants will be walked with that
-// visitor.
-//
-// This is very similar to how go/ast.Walk works.
-func walkParam(p param, v paramVisitor) {
-	v = v.Visit(p)
-	if v == nil {
-		return
-	}
-
-	switch par := p.(type) {
-	case paramSingle, paramGroupedSlice:
-		// No sub-results
-	case paramObject:
-		for _, f := range par.Fields {
-			walkParam(f.Param, v)
-		}
-	case paramList:
-		for _, p := range par.Params {
-			walkParam(p, v)
-		}
-	default:
-		panic(fmt.Sprintf(
-			"It looks like you have found a bug in dig. "+
-				"Please file an issue at https://github.com/uber-go/dig/issues/ "+
-				"and provide the following message: "+
-				"received unknown param type %T", p))
 	}
 }
 
@@ -157,11 +101,19 @@ func (pl paramList) DotParam() []*dot.Param {
 	return types
 }
 
+func (pl paramList) String() string {
+	args := make([]string, len(pl.Params))
+	for i, p := range pl.Params {
+		args[i] = p.String()
+	}
+	return fmt.Sprint(args)
+}
+
 // newParamList builds a paramList from the provided constructor type.
 //
 // Variadic arguments of a constructor are ignored and not included as
 // dependencies.
-func newParamList(ctype reflect.Type) (paramList, error) {
+func newParamList(ctype reflect.Type, c containerStore) (paramList, error) {
 	numArgs := ctype.NumIn()
 	if ctype.IsVariadic() {
 		// NOTE: If the function is variadic, we skip the last argument
@@ -175,7 +127,7 @@ func newParamList(ctype reflect.Type) (paramList, error) {
 	}
 
 	for i := 0; i < numArgs; i++ {
-		p, err := newParam(ctype.In(i))
+		p, err := newParam(ctype.In(i), c)
 		if err != nil {
 			return pl, errf("bad argument %d", i+1, err)
 		}
@@ -185,20 +137,18 @@ func newParamList(ctype reflect.Type) (paramList, error) {
 	return pl, nil
 }
 
-func (pl paramList) Build(containerStore) (reflect.Value, error) {
-	panic("It looks like you have found a bug in dig. " +
-		"Please file an issue at https://github.com/uber-go/dig/issues/ " +
-		"and provide the following message: " +
-		"paramList.Build() must never be called")
+func (pl paramList) Build(containerStore, bool) (reflect.Value, error) {
+	digerror.BugPanicf("paramList.Build() must never be called")
+	panic("") // Unreachable, as BugPanicf above will panic.
 }
 
 // BuildList returns an ordered list of values which may be passed directly
 // to the underlying constructor.
-func (pl paramList) BuildList(c containerStore) ([]reflect.Value, error) {
+func (pl paramList) BuildList(c containerStore, decorating bool) ([]reflect.Value, error) {
 	args := make([]reflect.Value, len(pl.Params))
 	for i, p := range pl.Params {
 		var err error
-		args[i], err = p.Build(c)
+		args[i], err = p.Build(c, decorating)
 		if err != nil {
 			return nil, err
 		}
@@ -228,12 +178,119 @@ func (ps paramSingle) DotParam() []*dot.Param {
 	}
 }
 
-func (ps paramSingle) Build(c containerStore) (reflect.Value, error) {
-	if v, ok := c.getValue(ps.Name, ps.Type); ok {
+func (ps paramSingle) String() string {
+	// tally.Scope[optional] means optional
+	// tally.Scope[optional, name="foo"] means named optional
+
+	var opts []string
+	if ps.Optional {
+		opts = append(opts, "optional")
+	}
+	if ps.Name != "" {
+		opts = append(opts, fmt.Sprintf("name=%q", ps.Name))
+	}
+
+	if len(opts) == 0 {
+		return fmt.Sprint(ps.Type)
+	}
+
+	return fmt.Sprintf("%v[%v]", ps.Type, strings.Join(opts, ", "))
+}
+
+// search the given container and its ancestors for a decorated value.
+func (ps paramSingle) getDecoratedValue(c containerStore) (reflect.Value, bool) {
+	for _, c := range c.storesToRoot() {
+		if v, ok := c.getDecoratedValue(ps.Name, ps.Type); ok {
+			return v, ok
+		}
+	}
+	return _noValue, false
+}
+
+// search the given container and its ancestors for a matching value.
+func (ps paramSingle) getValue(c containerStore) (reflect.Value, bool) {
+	for _, c := range c.storesToRoot() {
+		if v, ok := c.getValue(ps.Name, ps.Type); ok {
+			return v, ok
+		}
+	}
+	return _noValue, false
+}
+
+// builds the parameter using decorators in all scopes that affect the
+// current scope, if there are any. If there are multiple Scopes that decorates
+// this parameter, the closest one to the Scope that invoked this will be used.
+// If there are no decorators associated with this parameter, _noValue is returned.
+func (ps paramSingle) buildWithDecorators(c containerStore, decorating bool) (v reflect.Value, found bool, err error) {
+	var (
+		decorators      []decorator
+		decoratingScope containerStore
+	)
+	stores := c.storesToRoot()
+	// If we are already in a decorating stack,
+	// skip the current Scope to avoid infinite
+	// recursion.
+	if decorating {
+		stores = stores[1:]
+	}
+	for _, s := range stores {
+		if decorators = s.getValueDecorators(ps.Name, ps.Type); len(decorators) > 0 {
+			decoratingScope = s
+			break
+		}
+	}
+	if len(decorators) == 0 {
+		return _noValue, false, nil
+	}
+	found = true
+	for _, d := range decorators {
+		err := d.Call(decoratingScope)
+		if err == nil {
+			continue
+		}
+		if _, ok := err.(errMissingDependencies); ok && ps.Optional {
+			continue
+		}
+		v, err = _noValue, errParamSingleFailed{
+			CtorID: 1,
+			Key:    key{t: ps.Type, name: ps.Name},
+			Reason: err,
+		}
+		return v, found, err
+	}
+	v, _ = decoratingScope.getDecoratedValue(ps.Name, ps.Type)
+	return
+}
+
+func (ps paramSingle) Build(c containerStore, decorating bool) (reflect.Value, error) {
+	v, found, err := ps.buildWithDecorators(c, decorating)
+	if found {
+		return v, err
+	}
+
+	// Check whether the value is a decorated value first.
+	if v, ok := ps.getDecoratedValue(c); ok {
 		return v, nil
 	}
 
-	providers := c.getValueProviders(ps.Name, ps.Type)
+	if v, ok := ps.getValue(c); ok {
+		return v, nil
+	}
+
+	// Starting at the given container and working our way up its parents,
+	// find one that provides this dependency.
+	//
+	// Once found, we'll use that container for the rest of the invocation.
+	// Dependencies of this type will begin searching at that container,
+	// rather than starting at base.
+	var providers []provider
+	for _, container := range c.storesToRoot() {
+		providers = container.getValueProviders(ps.Name, ps.Type)
+		if len(providers) > 0 {
+			break
+		}
+	}
+
 	if len(providers) == 0 {
 		if ps.Optional {
 			return reflect.Zero(ps.Type), nil
@@ -242,7 +299,7 @@ func (ps paramSingle) Build(c containerStore) (reflect.Value, error) {
 	}
 
 	for _, n := range providers {
-		err := n.Call(c)
+		err := n.Call(n.OrigScope())
 		if err == nil {
 			continue
 		}
@@ -262,7 +319,7 @@ func (ps paramSingle) Build(c containerStore) (reflect.Value, error) {
 
 	// If we get here, it's impossible for the value to be absent from the
 	// container.
-	v, _ := c.getValue(ps.Name, ps.Type)
+	v, _ = ps.getValue(c)
 	return v, nil
 }
 
@@ -270,8 +327,9 @@ func (ps paramSingle) Build(c containerStore) (reflect.Value, error) {
 //
 // This object is not expected in the graph as-is.
 type paramObject struct {
-	Type   reflect.Type
-	Fields []paramObjectField
+	Type        reflect.Type
+	Fields      []paramObjectField
+	FieldOrders []int
 }
 
 func (po paramObject) DotParam() []*dot.Param {
@@ -282,10 +340,53 @@ func (po paramObject) DotParam() []*dot.Param {
 	return types
 }
 
+func (po paramObject) String() string {
+	fields := make([]string, len(po.Fields))
+	for i, f := range po.Fields {
+		fields[i] = f.Param.String()
+	}
+	return strings.Join(fields, " ")
+}
+
+// getParamOrder returns the order(s) of a parameter type.
+func getParamOrder(gh *graphHolder, param param) []int {
+	var orders []int
+	switch p := param.(type) {
+	case paramSingle:
+		providers := gh.s.getAllValueProviders(p.Name, p.Type)
+		for _, provider := range providers {
+			orders = append(orders, provider.Order(gh.s))
+		}
+	case paramGroupedSlice:
+		// value group parameters have nodes of their own.
+		// We can directly return that here.
+		orders = append(orders, p.orders[gh.s])
+	case paramObject:
+		for _, pf := range p.Fields {
+			orders = append(orders, getParamOrder(gh, pf.Param)...)
+		}
+	}
+	return orders
+}
+
 // newParamObject builds an paramObject from the provided type. The type MUST
 // be a dig.In struct.
-func newParamObject(t reflect.Type) (paramObject, error) {
+func newParamObject(t reflect.Type, c containerStore) (paramObject, error) {
 	po := paramObject{Type: t}
+
+	// Check if the In type supports ignoring unexported fields.
+	var ignoreUnexported bool
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if f.Type == _inType {
+			var err error
+			ignoreUnexported, err = isIgnoreUnexportedSet(f)
+			if err != nil {
+				return po, err
+			}
+			break
+		}
+	}
 
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
@@ -293,22 +394,23 @@ func newParamObject(t reflect.Type) (paramObject, error) {
 			// Skip over the dig.In embed.
 			continue
 		}
-
-		pof, err := newParamObjectField(i, f)
+		if f.PkgPath != "" && ignoreUnexported {
+			// Skip over an unexported field if it is allowed.
+			continue
+		}
+		pof, err := newParamObjectField(i, f, c)
 		if err != nil {
 			return po, errf("bad field %q of %v", f.Name, t, err)
 		}
-
 		po.Fields = append(po.Fields, pof)
 	}
-
 	return po, nil
 }
 
-func (po paramObject) Build(c containerStore) (reflect.Value, error) {
+func (po paramObject) Build(c containerStore, decorating bool) (reflect.Value, error) {
 	dest := reflect.New(po.Type).Elem()
 	for _, f := range po.Fields {
-		v, err := f.Build(c)
+		v, err := f.Build(c, decorating)
 		if err != nil {
 			return dest, err
 		}
@@ -336,7 +438,7 @@ func (pof paramObjectField) DotParam() []*dot.Param {
 	return pof.Param.DotParam()
 }
 
-func newParamObjectField(idx int, f reflect.StructField) (paramObjectField, error) {
+func newParamObjectField(idx int, f reflect.StructField, c containerStore) (paramObjectField, error) {
 	pof := paramObjectField{
 		FieldName:  f.Name,
 		FieldIndex: idx,
@@ -351,14 +453,14 @@ func newParamObjectField(idx int, f reflect.StructField) (paramObjectField, erro
 
 	case f.Tag.Get(_groupTag) != "":
 		var err error
-		p, err = newParamGroupedSlice(f)
+		p, err = newParamGroupedSlice(f, c)
 		if err != nil {
 			return pof, err
 		}
 
 	default:
 		var err error
-		p, err = newParam(f.Type)
+		p, err = newParam(f.Type, c)
 		if err != nil {
 			return pof, err
 		}
@@ -380,8 +482,8 @@ func newParamObjectField(idx int, f reflect.StructField) (paramObjectField, erro
 	return pof, nil
 }
 
-func (pof paramObjectField) Build(c containerStore) (reflect.Value, error) {
-	v, err := pof.Param.Build(c)
+func (pof paramObjectField) Build(c containerStore, decorating bool) (reflect.Value, error) {
+	v, err := pof.Param.Build(c, decorating)
 	if err != nil {
 		return v, err
 	}
@@ -396,6 +498,13 @@ type paramGroupedSlice struct {
 
 	// Type of the slice.
 	Type reflect.Type
+
+	orders map[*Scope]int
+}
+
+func (pt paramGroupedSlice) String() string {
+	// io.Reader[group="foo"] refers to a group of io.Readers called 'foo'
+	return fmt.Sprintf("%v[group=%q]", pt.Type.Elem(), pt.Group)
 }
 
 func (pt paramGroupedSlice) DotParam() []*dot.Param {
@@ -413,12 +522,12 @@ func (pt paramGroupedSlice) DotParam() []*dot.Param {
 // the given name.
 //
 // The type MUST be a slice type.
-func newParamGroupedSlice(f reflect.StructField) (paramGroupedSlice, error) {
+func newParamGroupedSlice(f reflect.StructField, c containerStore) (paramGroupedSlice, error) {
 	g, err := parseGroupString(f.Tag.Get(_groupTag))
 	if err != nil {
 		return paramGroupedSlice{}, err
 	}
-	pg := paramGroupedSlice{Group: g.Name, Type: f.Type}
+	pg := paramGroupedSlice{Group: g.Name, Type: f.Type, orders: make(map[*Scope]int)}
 
 	name := f.Tag.Get(_nameTag)
 	optional, _ := isFieldOptional(f)
@@ -437,26 +546,111 @@ func newParamGroupedSlice(f reflect.StructField) (paramGroupedSlice, error) {
 	case optional:
 		return pg, errors.New("value groups cannot be optional")
 	}
-
+	c.newGraphNode(&pg, pg.orders)
 	return pg, nil
 }
 
-func (pt paramGroupedSlice) Build(c containerStore) (reflect.Value, error) {
-	for _, n := range c.getGroupProviders(pt.Group, pt.Type.Elem()) {
-		if err := n.Call(c); err != nil {
-			return _noValue, errParamGroupFailed{
-				CtorID: n.ID(),
-				Key:    key{group: pt.Group, t: pt.Type.Elem()},
-				Reason: err,
+// retrieves any decorated values that may be committed in this scope, or
+// any of the parent Scopes. In the case where there are multiple scopes that
+// are decorating the same type, the closest scope in effect will be replacing
+// any decorated value groups provided in further scopes.
+func (pt paramGroupedSlice) getDecoratedValues(c containerStore) (reflect.Value, bool) {
+	for _, c := range c.storesToRoot() {
+		if items, ok := c.getDecoratedValueGroup(pt.Group, pt.Type); ok {
+			return items, true
+		}
+	}
+	return _noValue, false
+}
+
+// search the given container and its parents for matching group decorators
+// and call them to commit values. If any decorators return an error,
+// that error is returned immediately. If all decorators succeeds, nil is returned.
+// The order in which the decorators are invoked is from the top level scope to
+// the current scope, to account for decorators that decorate values that were
+// already decorated.
+func (pt paramGroupedSlice) callGroupDecorators(c containerStore) error {
+	stores := c.storesToRoot()
+	for i := len(stores) - 1; i >= 0; i-- {
+		c := stores[i]
+		for _, d := range c.getGroupDecorators(pt.Group, pt.Type.Elem()) {
+			if err := d.Call(c); err != nil {
+				return errParamGroupFailed{
+					CtorID: d.ID(),
+					Key:    key{group: pt.Group, t: pt.Type.Elem()},
+					Reason: err,
+				}
 			}
 		}
 	}
+	return nil
+}
 
-	items := c.getValueGroup(pt.Group, pt.Type.Elem())
+// search the given container and its parent for matching group providers and
+// call them to commit values. If an error is encountered, return the number
+// of providers called and a non-nil error from the first provided.
+func (pt paramGroupedSlice) callGroupProviders(c containerStore) (int, error) {
+	itemCount := 0
+	for _, c := range c.storesToRoot() {
+		providers := c.getGroupProviders(pt.Group, pt.Type.Elem())
+		itemCount += len(providers)
+		for _, n := range providers {
+			if err := n.Call(c); err != nil {
+				return 0, errParamGroupFailed{
+					CtorID: n.ID(),
+					Key:    key{group: pt.Group, t: pt.Type.Elem()},
+					Reason: err,
+				}
+			}
+		}
+	}
+	return itemCount, nil
+}
 
-	result := reflect.MakeSlice(pt.Type, len(items), len(items))
-	for i, v := range items {
-		result.Index(i).Set(v)
+func (pt paramGroupedSlice) Build(c containerStore, decorating bool) (reflect.Value, error) {
+	// do not call this if we are already inside a decorator since
+	// it will result in an infinite recursion. (i.e. decorate -> params.BuildList() -> Decorate -> params.BuildList...)
+	// this is safe since a value can be decorated at most once in a given scope.
+	if !decorating {
+		if err := pt.callGroupDecorators(c); err != nil {
+			return _noValue, err
+		}
+	}
+
+	// Check if we have decorated values
+	if decoratedItems, ok := pt.getDecoratedValues(c); ok {
+		return decoratedItems, nil
+	}
+
+	// If we do not have any decorated values, find the
+	// providers and call them.
+	itemCount, err := pt.callGroupProviders(c)
+	if err != nil {
+		return _noValue, err
+	}
+
+	stores := c.storesToRoot()
+	result := reflect.MakeSlice(pt.Type, 0, itemCount)
+	for _, c := range stores {
+		result = reflect.Append(result, c.getValueGroup(pt.Group, pt.Type.Elem())...)
 	}
 	return result, nil
+}
+
+// Checks if ignoring unexported files in an In struct is allowed.
+// The struct field MUST be an _inType.
+func isIgnoreUnexportedSet(f reflect.StructField) (bool, error) {
+	tag := f.Tag.Get(_ignoreUnexportedTag)
+	if tag == "" {
+		return false, nil
+	}
+
+	allowed, err := strconv.ParseBool(tag)
+	if err != nil {
+		err = errf(
+			"invalid value %q for %q tag on field %v",
+			tag, _ignoreUnexportedTag, f.Name, err)
+	}
+
+	return allowed, err
 }
