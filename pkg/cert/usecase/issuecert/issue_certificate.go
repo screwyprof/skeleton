@@ -3,6 +3,8 @@ package issuecert
 import (
 	"context"
 
+	"github.com/ansel1/merry/v2"
+
 	"github.com/screwyprof/skeleton/pkg/cert/command"
 )
 
@@ -26,5 +28,9 @@ func (i CertIssuer) Handle(ctx context.Context, q command.IssueCertificate) erro
 		Title:       q.Title,
 	}
 
-	return i.storage.Store(ctx, cert)
+	if err := i.storage.Store(ctx, cert); err != nil {
+		return merry.Wrap(err)
+	}
+
+	return nil
 }

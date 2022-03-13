@@ -7,11 +7,9 @@ import (
 	sentrygin "github.com/getsentry/sentry-go/gin"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
-	"github.com/go-pg/pg/v9"
 	"github.com/screwyprof/golibs/adaptor"
 	"github.com/screwyprof/golibs/cmdhandler"
 	"github.com/screwyprof/golibs/gin/middleware/ctxtags"
-	"github.com/screwyprof/golibs/gin/middleware/ctxtx"
 	"github.com/screwyprof/golibs/gin/middleware/ctxzap"
 	"github.com/screwyprof/golibs/gin/middleware/errors"
 	"github.com/screwyprof/golibs/gin/renderer"
@@ -28,14 +26,14 @@ var Module = fx.Provide(
 	NewHTTPHandler,
 )
 
-func NewGin(logger *zap.Logger, db *pg.DB) *gin.Engine {
+func NewGin(logger *zap.Logger) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	e := gin.New()
 	e.Use(ginzap.RecoveryWithZap(logger, true))
 	e.Use(errors.ErrorHandler())
 	e.Use(sentrygin.New(sentrygin.Options{Repanic: true}))
-	e.Use(ctxtx.CtxTX(db))
+	// e.Use(ctxtx.CtxTX(db))
 	e.Use(ctxtags.CtxTags(ctxtags.WithFieldExtractor(ctxtags.RequestID)))
 	e.Use(ctxzap.CtxZap(logger, time.RFC3339, true))
 
@@ -45,7 +43,8 @@ func NewGin(logger *zap.Logger, db *pg.DB) *gin.Engine {
 func NewHTTPHandler(
 	mux *gin.Engine,
 	commandHandler cmdhandler.CommandHandler,
-	queryRunner queryer.QueryRunner) http.Handler {
+	queryRunner queryer.QueryRunner,
+) http.Handler {
 	certViewer := adaptor.MustAdapt(handler.NewCertificateViewer(queryRunner).Handle)
 	certIssuer := adaptor.MustAdapt(handler.NewCertificateIssuer(commandHandler, queryRunner).Handle)
 

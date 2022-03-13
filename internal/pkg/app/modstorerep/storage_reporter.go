@@ -1,7 +1,7 @@
 package modstorerep
 
 import (
-	"github.com/go-pg/pg/v9"
+	"github.com/go-rel/rel"
 	"go.uber.org/fx"
 
 	"github.com/screwyprof/skeleton/internal/pkg/adapter/postgres"
@@ -14,10 +14,10 @@ var Module = fx.Provide(
 	NewReporter,
 )
 
-func NewStorage(db *pg.DB) issuecert.CertStorage {
-	return postgres.NewCertificateRepository(postgres.NewCtxTxRunner(db))
+func NewStorage(repo rel.Repository) issuecert.CertStorage {
+	return postgres.NewCertificateRepository(repo)
 }
 
-func NewReporter(db *pg.DB) viewcert.CertReporter {
-	return postgres.NewCertificateRepository(postgres.NewCtxTxRunner(db))
+func NewReporter(repo rel.Repository) viewcert.CertReporter {
+	return postgres.NewCertificateRepository(repo)
 }

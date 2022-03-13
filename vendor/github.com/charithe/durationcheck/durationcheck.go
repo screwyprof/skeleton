@@ -96,10 +96,13 @@ func isUnacceptableExpr(pass *analysis.Pass, expr ast.Expr) bool {
 		return !isAcceptableNestedExpr(pass, e)
 	case *ast.StarExpr:
 		return !isAcceptableNestedExpr(pass, e)
+	case *ast.ParenExpr:
+		return !isAcceptableNestedExpr(pass, e)
+	case *ast.IndexExpr:
+		return !isAcceptableNestedExpr(pass, e)
 	default:
 		return true
 	}
-
 }
 
 // isAcceptableCast returns true if the argument is an acceptable expression cast to time.Duration
@@ -147,12 +150,20 @@ func isAcceptableNestedExpr(pass *analysis.Pass, n ast.Expr) bool {
 	case *ast.Ident:
 		return isAcceptableIdent(pass, e)
 	case *ast.CallExpr:
+		if isAcceptableCast(pass, e) {
+			return true
+		}
 		t := pass.TypesInfo.TypeOf(e)
 		return !isDuration(t)
 	case *ast.SelectorExpr:
 		return isAcceptableNestedExpr(pass, e.X) && isAcceptableIdent(pass, e.Sel)
 	case *ast.StarExpr:
 		return isAcceptableNestedExpr(pass, e.X)
+	case *ast.ParenExpr:
+		return isAcceptableNestedExpr(pass, e.X)
+	case *ast.IndexExpr:
+		t := pass.TypesInfo.TypeOf(e)
+		return !isDuration(t)
 	default:
 		return false
 	}

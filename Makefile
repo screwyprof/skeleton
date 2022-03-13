@@ -7,6 +7,9 @@ BINARY ?= skeleton
 # This repo's root import path (under GOPATH).
 PKG := github.com/screwyprof/skeleton
 
+## DO NOT EDIT LINES BELOW
+GO_FILES = $(shell find . -name "*.go" | grep -v vendor | uniq)
+
 BUILD_DATE = $(shell date -u '+%Y.%m.%d')
 GOLANG_VERSION ?= $(shell go version | cut -d" " -f3 | sed 's/go//')
 
@@ -105,7 +108,8 @@ test-ci: ## runing all tests with coverage
 
 fmt: ## format go files
 	@echo "$(OK_COLOR)--> Formatting go files$(NO_COLOR)"
-	go fmt ./...
+	@tools/bin/gofumpt -s -l -w $(GO_FILES)
+	@tools/bin/gci -w -l $(PKG) $(GO_FILES)
 
 clean: ## clean up
 	@echo "$(OK_COLOR)--> Clean up$(NO_COLOR)"

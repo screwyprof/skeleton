@@ -34,7 +34,7 @@ func NewWSL() *goanalysis.Linter {
 	).WithContextSetter(func(lintCtx *linter.Context) {
 		analyzer.Run = func(pass *analysis.Pass) (interface{}, error) {
 			var (
-				files        = []string{}
+				files        = make([]string, 0, len(pass.Files))
 				linterCfg    = lintCtx.Cfg.LintersSettings.WSL
 				processorCfg = wsl.Configuration{
 					StrictAppend:                     linterCfg.StrictAppend,
@@ -46,6 +46,7 @@ func NewWSL() *goanalysis.Linter {
 					AllowSeparatedLeadingComment:     linterCfg.AllowSeparatedLeadingComment,
 					ForceCuddleErrCheckAndAssign:     linterCfg.ForceCuddleErrCheckAndAssign,
 					ForceCaseTrailingWhitespaceLimit: linterCfg.ForceCaseTrailingWhitespaceLimit,
+					ForceExclusiveShortDeclarations:  linterCfg.ForceExclusiveShortDeclarations,
 					AllowCuddleWithCalls:             []string{"Lock", "RLock"},
 					AllowCuddleWithRHS:               []string{"Unlock", "RUnlock"},
 					ErrorVariableNames:               []string{"err"},

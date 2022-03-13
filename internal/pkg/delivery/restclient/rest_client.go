@@ -21,7 +21,7 @@ type RESTClient struct {
 
 func New(baseURL string) *RESTClient {
 	r := resty.New()
-	r.SetHostURL(baseURL)
+	r.SetBaseURL(baseURL)
 
 	return &RESTClient{httpClient: r}
 }

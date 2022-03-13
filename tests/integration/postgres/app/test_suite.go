@@ -1,11 +1,11 @@
-//+build integration
+//go:build integration
 
 package app
 
 import (
 	"github.com/brianvoe/gofakeit/v4"
 	"github.com/gin-gonic/gin"
-	"github.com/go-pg/pg/v9"
+	"github.com/go-rel/rel"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
@@ -14,8 +14,8 @@ import (
 // TestSuite defines a test suite for the application.
 type TestSuite struct {
 	suite.Suite
-	app *fxtest.App
-	DB  *pg.DB
+	app  *fxtest.App
+	Repo rel.Repository
 }
 
 // SetupSuite runs once on suit initialization.
@@ -27,7 +27,7 @@ func (s *TestSuite) SetupSuite() {
 
 	s.app = fxtest.New(s.T(),
 		TestModule,
-		fx.Populate(&s.DB),
+		fx.Populate(&s.Repo),
 	)
 	s.app.RequireStart()
 }

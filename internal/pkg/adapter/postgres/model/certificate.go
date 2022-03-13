@@ -1,7 +1,7 @@
 package model
 
 type Certificate struct {
-	CertificateID string `pg:"certificate_id,pk"`
+	CertificateID string `db:"certificate_id,uuid,primary"`
 	ArtistID      string
 	Title         string
 	ArtworkType   string

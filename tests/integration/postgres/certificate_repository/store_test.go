@@ -1,4 +1,5 @@
-//+build integration
+//go:build integration
+// +build integration
 
 package certificate_repository_test
 
@@ -6,7 +7,6 @@ import (
 	"context"
 
 	"github.com/brianvoe/gofakeit/v4"
-	"github.com/pkg/errors"
 
 	"github.com/screwyprof/skeleton/internal/pkg/adapter/postgres/model"
 	"github.com/screwyprof/skeleton/pkg/cert/usecase/issuecert"
@@ -21,7 +21,7 @@ func (s *TestSuite) TestStore_ValidDataGiven_CertificateCreated() {
 
 func (s *TestSuite) TestStore_CannotStoreCertificate_ErrorReturned() {
 	err := s.repo.Store(context.Background(), &issuecert.Certificate{})
-	s.Assert().True(errors.Is(err, storage.ErrCannotStoreCertificate))
+	s.Assert().ErrorIs(err, storage.ErrCannotStoreCertificate)
 }
 
 func (s *TestSuite) TestStore_SameCertificateStoredTwice_ErrorReturned() {
@@ -53,7 +53,7 @@ func (s *TestSuite) whenCertificateIsStoredTwice(c *issuecert.Certificate) error
 }
 
 func (s *TestSuite) thenFailsWithAlreadyExistsError(err error) {
-	s.Assert().True(errors.Is(err, storage.ErrCertificateAlreadyExists))
+	s.Assert().ErrorIs(err, storage.ErrCertificateAlreadyExists)
 }
 
 func (s *TestSuite) thenCertificateExists(c *issuecert.Certificate) {
