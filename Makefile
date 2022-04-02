@@ -60,7 +60,7 @@ build: ## build application
 	go build -ldflags "$(LDFLAGS)" -o $(PWD)/bin/$(BINARY) $(PWD)/cmd/skeleton.go
 
 build-docker: ## build application staically for docker
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -ldflags "-w $(LDFLAGS)" -a -o ./bin/$(BINARY)  $(PWD)/cmd/skeleton.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w $(LDFLAGS)" -a -o ./bin/$(BINARY)  $(PWD)/cmd/skeleton.go
 
 build-ci: ## build application with race detector
 	@echo "$(OK_COLOR)--> Building application$(NO_COLOR)"
@@ -70,9 +70,13 @@ run: # run application locally with the given .env file
 	@echo "$(OK_COLOR)--> Running application$(NO_COLOR)"
 	@(sh -ac 'source .env && go run cmd/skeleton.go')
 
-lint: ## run linters
+lint: ## run linters on the changed files
 	@echo "$(OK_COLOR)--> Running linters$(NO_COLOR)"
 	tools/bin/golangci-lint run
+
+lint-all: ## run linters on the whole project
+	@echo "$(OK_COLOR)==> Linting$(NO_COLOR)"
+	golangci-lint run ./... --new-from-rev=""
 
 mock-gen: ## generate mocks
 	@echo "$(OK_COLOR)--> Generating mocks$(NO_COLOR)"
@@ -130,4 +134,6 @@ help: ## show this help
 # To avoid unintended conflicts with file names, always add to .PHONY
 # unless there is a reason not to.
 # https://www.gnu.org/software/make/manual/html_node/Phony-Targets.html
-.PHONY: all ci-all deps install-tools build build-ci run lint mock-gen test test-local test-unit test-integration test-e2e test-ci fmt clean version help
+.PHONY: all ci-all deps install-tools build build-ci run lint lint all
+.PHONY: mock-gen test test-local test-unit test-integration test-e2e test-ci
+.PHONY: fmt clean version help
