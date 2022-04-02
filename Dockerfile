@@ -1,5 +1,5 @@
 # Start from golang base image
-FROM golang:1.17-alpine as builder
+FROM golang:1.18-alpine as builder
 
 # Set the current working directory inside the container
 WORKDIR /app
@@ -12,10 +12,10 @@ RUN apk update && apk add --no-cache git make
 RUN adduser -D gouser && chown -R gouser /app
 
 # Copy go mod and sum files
-#COPY go.mod go.sum ./
+COPY go.mod go.sum ./
 
 # Download all dependencies. Dependencies will be cached if the go.mod and the go.sum files are not changed
-#RUN go mod download && go mod vendor
+RUN go mod download
 
 # Copy the source from the current directory to the working Directory inside the container
 COPY . .

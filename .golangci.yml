@@ -1,79 +1,92 @@
 run:
   deadline: 20m
   skip-dirs-use-default: true
+  go: '1.18'
 
 modules-download-mode: readonly
 
 linters:
   disable-all: true
   enable:
+    - asciicheck
+    - bidichk
     - bodyclose
+    - contextcheck
+    - cyclop
     - deadcode
     - depguard
     - dogsled
     - dupl
+    - durationcheck
     - errcheck
+    - errname
+    - errorlint
     - exhaustive
+    #- exhaustivestruct
+    - exportloopref
+    #- forbidigo
+    - forcetypeassert
     - funlen
+    - gci
+    #- gochecknoglobals
     - gochecknoinits
+    - gocognit
     - goconst
     - gocritic
     - gocyclo
+    - godot
+    - godox
+    - goerr113
     - gofmt
+    - gofumpt
+    - goheader
     - goimports
-    - golint
     - gomnd
+    - gomoddirectives
+    - gomodguard
     - goprintffuncname
     - gosec
     - gosimple
     - govet
+    - ifshort
+    - importas
     - ineffassign
+    #- ireturn
     - lll
+    - makezero
     - misspell
     - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - nlreturn
     - noctx
     - nolintlint
+    - paralleltest
+    - prealloc
+    - predeclared
+    - promlinter
+    - revive
     - rowserrcheck
-    - scopelint
+    - sqlclosecheck
     - staticcheck
     - structcheck
     - stylecheck
+    #- tagliatelle
+    - tenv
+    - testpackage
+    - thelper
+    - tparallel
     - typecheck
     - unconvert
     - unparam
     - unused
     - varcheck
+    #- varnamelen
+    - wastedassign
     - whitespace
-    - asciicheck
-    #- gochecknoglobals
-    - gocognit
-    - godot
-    - godox
-    - goerr113
-    - nestif
-    - prealloc
-    - testpackage
-    - revive
-    - wsl
-    - cyclop
-    - durationcheck
-    - errorlint
-    - exportloopref
-    #- forbidigo
-    #- exhaustivestruct
-    - gci
-    - gofumpt
-    - goheader
-    - gomodguard
-    - ifshort
-    - makezero
-    - nlreturn
-    - paralleltest
-    - predeclared
-    - sqlclosecheck
-    - thelper
-    - tparallel
     - wrapcheck
+    - wsl
 
 issues:
   # Show only new issues created after git revision `REV`
@@ -88,8 +101,6 @@ issues:
         - dupl
 
 linters-settings:
-  golint:
-    min-confidence: 0
   goconst:
     min-len: 2
     min-occurrences: 2
@@ -101,6 +112,7 @@ linters-settings:
     min-complexity: 5
   gci:
     # put imports beginning with prefix after 3rd-party packages;
-    # only support one prefix
-    # if not set, use goimports.local-prefixes
-    local-prefixes: github.com/screwyprof/skeleton
+    sections:
+      - standard
+      - default
+      - prefix(github.com/screwyprof/skeleton)
