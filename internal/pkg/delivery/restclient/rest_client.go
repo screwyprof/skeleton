@@ -44,7 +44,7 @@ func (c *RESTClient) IssueCertificate(certificate req.IssueCertificate) (*resp.V
 		return nil, fmt.Errorf("%w: unexpected http status %d", ErrUnexpectedHTTPStatus, r.StatusCode())
 	}
 
-	res := r.Result().(*resp.ViewCertificate)
+	res := r.Result().(*resp.ViewCertificate) //nolint:forcetypeassert
 
 	return res, nil
 }
@@ -63,7 +63,7 @@ func (c *RESTClient) ViewCertificate(certificateID string) (*resp.ViewCertificat
 		return nil, fmt.Errorf("%w: unexpected http status %d", ErrUnexpectedHTTPStatus, r.StatusCode())
 	}
 
-	res := r.Result().(*resp.ViewCertificate)
+	res := r.Result().(*resp.ViewCertificate) //nolint:forcetypeassert
 
 	return res, nil
 }

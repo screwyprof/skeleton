@@ -22,13 +22,13 @@ linters:
     - errname
     - errorlint
     - exhaustive
-    - exhaustivestruct
+    #- exhaustivestruct
     - exportloopref
-    - forbidigo
+    #- forbidigo
     - forcetypeassert
     - funlen
     - gci
-    - gochecknoglobals
+    #- gochecknoglobals
     - gochecknoinits
     - gocognit
     - goconst
@@ -51,7 +51,7 @@ linters:
     - ifshort
     - importas
     - ineffassign
-    - ireturn
+    #- ireturn
     - lll
     - makezero
     - misspell
@@ -72,7 +72,7 @@ linters:
     - staticcheck
     - structcheck
     - stylecheck
-    - tagliatelle
+    #- tagliatelle
     - tenv
     - testpackage
     - thelper
@@ -82,7 +82,7 @@ linters:
     - unparam
     - unused
     - varcheck
-    - varnamelen
+    #- varnamelen
     - wastedassign
     - whitespace
     - wrapcheck
@@ -112,4 +112,7 @@ linters-settings:
     min-complexity: 5
   gci:
     # put imports beginning with prefix after 3rd-party packages;
-    section: Prefix(github.com/screwyprof/skeleton)
+    sections:
+      - standard
+      - default
+      - prefix(github.com/screwyprof/skeleton)
