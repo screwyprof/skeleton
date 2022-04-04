@@ -6,53 +6,38 @@ import (
 	"testing"
 
 	"github.com/brianvoe/gofakeit/v4"
-	"github.com/golang/mock/gomock"
 	"github.com/screwyprof/golibs/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/screwyprof/skeleton/cert/command"
-	"github.com/screwyprof/skeleton/cert/query"
 	"github.com/screwyprof/skeleton/cert/report"
 	"github.com/screwyprof/skeleton/cert/usecase/storage"
 	"github.com/screwyprof/skeleton/internal/delivery/rest/apierr"
 	"github.com/screwyprof/skeleton/internal/delivery/rest/handler"
-	"github.com/screwyprof/skeleton/internal/delivery/rest/mock"
 	"github.com/screwyprof/skeleton/internal/delivery/rest/req"
 	"github.com/screwyprof/skeleton/internal/delivery/rest/resp"
 )
 
-func TestCertificateIssuer_Handle(t *testing.T) {
+func TestCertificateIssuer(t *testing.T) {
 	t.Parallel()
 
 	t.Run("certificate creation error occurs, error returned", func(t *testing.T) {
 		t.Parallel()
+
 		// arrange
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
+		var rq *req.IssueCertificate
+		gofakeit.Struct(&rq)
 
-		rq := &req.IssueCertificate{
-			CertificateID: gofakeit.UUID(),
-			ArtistID:      gofakeit.UUID(),
-			Title:         gofakeit.Sentence(5),
-			ArtworkType:   "painting",
+		commandHandler := CommandHandlerSpy{
+			Fn: func(ctx context.Context, command interface{}) error {
+				return errSomeBadThingHappened
+			},
 		}
 
-		c := command.IssueCertificate{
-			ID:          rq.CertificateID,
-			ArtistID:    rq.ArtistID,
-			Title:       rq.Title,
-			ArtworkType: rq.ArtworkType,
-		}
-
-		commandHandler := mock.NewMockCommandHandler(ctrl)
-		commandHandler.EXPECT().
-			Handle(gomock.Any(), c).
-			Return(errSomeBadThingHappened)
-
-		h := handler.NewCertificateIssuer(commandHandler, nil)
+		sut := handler.NewCertificateIssuer(commandHandler, nil)
 
 		// act
-		_, err := h.Handle(context.Background(), rq)
+		_, err := sut.Handle(context.Background(), rq)
 
 		// assert
 		assertCause(t, err, errSomeBadThingHappened)
@@ -60,33 +45,21 @@ func TestCertificateIssuer_Handle(t *testing.T) {
 
 	t.Run("certificate exists, error returned", func(t *testing.T) {
 		t.Parallel()
+
 		// arrange
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
+		var rq *req.IssueCertificate
+		gofakeit.Struct(&rq)
 
-		rq := &req.IssueCertificate{
-			CertificateID: gofakeit.UUID(),
-			ArtistID:      gofakeit.UUID(),
-			Title:         gofakeit.Sentence(5),
-			ArtworkType:   "painting",
+		commandHandler := CommandHandlerSpy{
+			Fn: func(ctx context.Context, command interface{}) error {
+				return storage.ErrCertificateAlreadyExists
+			},
 		}
 
-		c := command.IssueCertificate{
-			ID:          rq.CertificateID,
-			ArtistID:    rq.ArtistID,
-			Title:       rq.Title,
-			ArtworkType: rq.ArtworkType,
-		}
-
-		commandHandler := mock.NewMockCommandHandler(ctrl)
-		commandHandler.EXPECT().
-			Handle(gomock.Any(), c).
-			Return(storage.ErrCertificateAlreadyExists)
-
-		h := handler.NewCertificateIssuer(commandHandler, nil)
+		sut := handler.NewCertificateIssuer(commandHandler, nil)
 
 		// act
-		_, err := h.Handle(context.Background(), rq)
+		_, err := sut.Handle(context.Background(), rq)
 
 		// assert
 		assertCause(t, err, storage.ErrCertificateAlreadyExists)
@@ -94,10 +67,8 @@ func TestCertificateIssuer_Handle(t *testing.T) {
 
 	t.Run("certificate not found, error returned", func(t *testing.T) {
 		t.Parallel()
-		// arrange
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
 
+		// arrange
 		certificateID := gofakeit.UUID()
 
 		rq := &req.IssueCertificate{
@@ -107,26 +78,22 @@ func TestCertificateIssuer_Handle(t *testing.T) {
 			ArtworkType:   "painting",
 		}
 
-		c := command.IssueCertificate{
-			ID:          rq.CertificateID,
-			ArtistID:    rq.ArtistID,
-			Title:       rq.Title,
-			ArtworkType: rq.ArtworkType,
+		commandHandler := CommandHandlerSpy{
+			Fn: func(ctx context.Context, command interface{}) error {
+				return nil
+			},
 		}
 
-		commandHandler := mock.NewMockCommandHandler(ctrl)
-		commandHandler.EXPECT().
-			Handle(gomock.Any(), c)
+		queryRunner := QueryRunnerSpy{
+			Fn: func(ctx context.Context, query, report interface{}) error {
+				return storage.ErrCertificateNotFound
+			},
+		}
 
-		queryRunner := mock.NewMockQueryRunner(ctrl)
-		queryRunner.EXPECT().
-			RunQuery(gomock.Any(), query.ViewCertificate{ID: certificateID}, &report.Certificate{}).
-			Return(storage.ErrCertificateNotFound)
-
-		h := handler.NewCertificateIssuer(commandHandler, queryRunner)
+		sut := handler.NewCertificateIssuer(commandHandler, queryRunner)
 
 		// act
-		_, err := h.Handle(context.Background(), rq)
+		_, err := sut.Handle(context.Background(), rq)
 
 		// assert
 		assertCause(t, err, storage.ErrCertificateNotFound)
@@ -135,9 +102,6 @@ func TestCertificateIssuer_Handle(t *testing.T) {
 	t.Run("an error occurred when getting a certificate, internal system error returned", func(t *testing.T) {
 		t.Parallel()
 		// arrange
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
 		certificateID := gofakeit.UUID()
 
 		rq := &req.IssueCertificate{
@@ -147,26 +111,22 @@ func TestCertificateIssuer_Handle(t *testing.T) {
 			ArtworkType:   "painting",
 		}
 
-		c := command.IssueCertificate{
-			ID:          rq.CertificateID,
-			ArtistID:    rq.ArtistID,
-			Title:       rq.Title,
-			ArtworkType: rq.ArtworkType,
+		commandHandler := CommandHandlerSpy{
+			Fn: func(ctx context.Context, command interface{}) error {
+				return nil
+			},
 		}
 
-		commandHandler := mock.NewMockCommandHandler(ctrl)
-		commandHandler.EXPECT().
-			Handle(gomock.Any(), c)
+		queryRunner := QueryRunnerSpy{
+			Fn: func(ctx context.Context, query, report interface{}) error {
+				return errSomeBadThingHappened
+			},
+		}
 
-		queryRunner := mock.NewMockQueryRunner(ctrl)
-		queryRunner.EXPECT().
-			RunQuery(gomock.Any(), query.ViewCertificate{ID: certificateID}, &report.Certificate{}).
-			Return(errSomeBadThingHappened)
-
-		h := handler.NewCertificateIssuer(commandHandler, queryRunner)
+		sut := handler.NewCertificateIssuer(commandHandler, queryRunner)
 
 		// act
-		_, err := h.Handle(context.Background(), rq)
+		_, err := sut.Handle(context.Background(), rq)
 
 		// assert
 		assertCause(t, err, errSomeBadThingHappened)
@@ -174,18 +134,10 @@ func TestCertificateIssuer_Handle(t *testing.T) {
 
 	t.Run("certificate issued successfully, valid response returned", func(t *testing.T) {
 		t.Parallel()
+
 		// arrange
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		certificateID := gofakeit.UUID()
-
-		want := &resp.IssueCertificate{
-			CertificateID: certificateID,
-			Title:         gofakeit.Sentence(5),
-			ArtistName:    gofakeit.Name(),
-			ArtworkType:   "painting",
-		}
+		var want *resp.IssueCertificate
+		gofakeit.Struct(&want)
 
 		rq := &req.IssueCertificate{
 			CertificateID: want.CertificateID,
@@ -201,25 +153,33 @@ func TestCertificateIssuer_Handle(t *testing.T) {
 			ArtworkType: rq.ArtworkType,
 		}
 
-		rep := report.Certificate{
-			ArtistName:  want.ArtistName,
-			ArtworkType: want.ArtworkType,
-			Title:       want.Title,
+		commandHandler := CommandHandlerSpy{
+			Fn: func(ctx context.Context, command interface{}) error {
+				assert.Equals(t, c, command)
+
+				return nil
+			},
 		}
 
-		commandHandler := mock.NewMockCommandHandler(ctrl)
-		commandHandler.EXPECT().
-			Handle(gomock.Any(), c)
+		queryRunner := QueryRunnerSpy{
+			Fn: func(ctx context.Context, query, rep interface{}) error {
+				r, ok := rep.(*report.Certificate)
+				assert.True(t, ok)
 
-		queryRunner := mock.NewMockQueryRunner(ctrl)
-		queryRunner.EXPECT().
-			RunQuery(gomock.Any(), query.ViewCertificate{ID: certificateID}, &report.Certificate{}).
-			SetArg(2, rep)
+				*r = report.Certificate{
+					ArtistName:  want.ArtistName,
+					ArtworkType: want.ArtworkType,
+					Title:       want.Title,
+				}
 
-		h := handler.NewCertificateIssuer(commandHandler, queryRunner)
+				return nil
+			},
+		}
+
+		sut := handler.NewCertificateIssuer(commandHandler, queryRunner)
 
 		// act
-		res, err := h.Handle(context.Background(), rq)
+		res, err := sut.Handle(context.Background(), rq)
 
 		// assert
 		require.NoError(t, err)

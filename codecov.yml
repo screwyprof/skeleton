@@ -1,4 +1,4 @@
 ignore:
-  - "**/*_mock.go"  # ignore mock files
+  - "**/*_helpers_test.go"  # ignore test helpers
   - "internal/app"
   - "internal/delivery/restclient"

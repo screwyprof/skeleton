@@ -27,6 +27,7 @@ func (v CertViewer) ViewCertificate(ctx context.Context, q query.ViewCertificate
 		return fmt.Errorf("certificateID: %s: %w", q.ID, storage.ErrCertificateNotFound)
 	}
 
+	r.ID = cert.ID
 	r.Title = cert.Title
 	r.ArtistName = cert.ArtistName
 	r.ArtworkType = cert.ArtworkType
