@@ -5,8 +5,8 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/screwyprof/skeleton/internal/pkg/app"
-	"github.com/screwyprof/skeleton/internal/pkg/app/version"
+	"github.com/screwyprof/skeleton/internal/app"
+	"github.com/screwyprof/skeleton/internal/app/version"
 )
 
 // flags .

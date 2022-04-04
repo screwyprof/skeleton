@@ -10,8 +10,8 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
-	"github.com/screwyprof/skeleton/internal/pkg/app"
-	"github.com/screwyprof/skeleton/internal/pkg/app/modcfg"
+	"github.com/screwyprof/skeleton/internal/app"
+	"github.com/screwyprof/skeleton/internal/app/modcfg"
 )
 
 // TestSuite defines a test suite for the application.

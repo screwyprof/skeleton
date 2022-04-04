@@ -9,8 +9,8 @@ import (
 	"github.com/go-rel/rel"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/screwyprof/skeleton/internal/pkg/adapter/postgres"
-	"github.com/screwyprof/skeleton/internal/pkg/adapter/postgres/model"
+	"github.com/screwyprof/skeleton/internal/adapter/postgres"
+	"github.com/screwyprof/skeleton/internal/adapter/postgres/model"
 	"github.com/screwyprof/skeleton/tests/integration/postgres/app"
 )
 
