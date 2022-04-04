@@ -5,10 +5,9 @@ import (
 	"testing"
 
 	"github.com/brianvoe/gofakeit/v4"
-	"github.com/golang/mock/gomock"
+	"github.com/screwyprof/golibs/assert"
 	. "github.com/screwyprof/golibs/queryer/testdsl"
 
-	"github.com/screwyprof/skeleton/cert/mock"
 	"github.com/screwyprof/skeleton/cert/query"
 	"github.com/screwyprof/skeleton/cert/report"
 	"github.com/screwyprof/skeleton/cert/usecase/storage"
@@ -21,16 +20,18 @@ func TestViewCertificate(t *testing.T) {
 	t.Run("non existent certificate id given, not found error returned", func(t *testing.T) {
 		t.Parallel()
 
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
 		certificateID := gofakeit.UUID()
 
-		reporter := createErrCertReporter(ctrl, certificateID, storage.ErrCertificateNotFound)
-		concreteQueryRunner := viewcert.NewQueryer(reporter).ViewCertificate
+		reporter := CertReporterSpy{
+			Fn: func(ctx context.Context, id string) (report.Certificate, error) {
+				return report.Certificate{}, storage.ErrCertificateNotFound
+			},
+		}
+
+		sut := viewcert.NewQueryer(reporter).ViewCertificate
 
 		Test(t)(
-			Given("ViewCertificate", concreteQueryRunner),
+			Given("ViewCertificate", sut),
 			When(context.Background(), query.ViewCertificate{ID: certificateID}, &report.Certificate{}),
 			ThenFailWith(storage.ErrCertificateNotFound),
 		)
@@ -39,41 +40,34 @@ func TestViewCertificate(t *testing.T) {
 	t.Run("an existing certificate id given, certificate info returned", func(t *testing.T) {
 		t.Parallel()
 
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
+		var want *report.Certificate
+		gofakeit.Struct(&want)
 
 		certificateID := gofakeit.UUID()
-		want := report.Certificate{
-			ArtistName:  gofakeit.Name(),
-			ArtworkType: gofakeit.BuzzWord(),
-			Title:       gofakeit.Sentence(5),
+		want.ID = certificateID
+
+		reporter := CertReporterSpy{
+			Fn: func(ctx context.Context, id string) (report.Certificate, error) {
+				assert.Equals(t, certificateID, id)
+
+				return *want, nil
+			},
 		}
 
-		reporter := createCertReporter(ctrl, certificateID, want)
-		concreteQueryRunner := viewcert.NewQueryer(reporter).ViewCertificate
+		sut := viewcert.NewQueryer(reporter).ViewCertificate
 
 		Test(t)(
-			Given("ViewCertificate", concreteQueryRunner),
+			Given("ViewCertificate", sut),
 			When(context.Background(), query.ViewCertificate{ID: certificateID}, &report.Certificate{}),
-			Then(&want),
+			Then(want),
 		)
 	})
 }
 
-func createCertReporter(ctrl *gomock.Controller, certificateID string, want report.Certificate) *mock.MockCertReporter {
-	certReporter := mock.NewMockCertReporter(ctrl)
-	certReporter.EXPECT().
-		CertificateByID(context.Background(), certificateID).
-		Return(want, nil)
-
-	return certReporter
+type CertReporterSpy struct {
+	Fn func(ctx context.Context, certificateID string) (report.Certificate, error)
 }
 
-func createErrCertReporter(ctrl *gomock.Controller, certificateID string, want error) *mock.MockCertReporter {
-	certReporter := mock.NewMockCertReporter(ctrl)
-	certReporter.EXPECT().
-		CertificateByID(context.Background(), certificateID).
-		Return(report.Certificate{}, want)
-
-	return certReporter
+func (s CertReporterSpy) CertificateByID(ctx context.Context, certificateID string) (report.Certificate, error) {
+	return s.Fn(ctx, certificateID)
 }

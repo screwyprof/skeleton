@@ -5,11 +5,9 @@ import (
 	"testing"
 
 	"github.com/brianvoe/gofakeit/v4"
-	"github.com/golang/mock/gomock"
 	. "github.com/screwyprof/golibs/cmdhandler/testdsl"
 
 	"github.com/screwyprof/skeleton/cert/command"
-	"github.com/screwyprof/skeleton/cert/mock"
 	"github.com/screwyprof/skeleton/cert/usecase/issuecert"
 	"github.com/screwyprof/skeleton/cert/usecase/storage"
 )
@@ -20,31 +18,29 @@ func TestIssueCertificate(t *testing.T) {
 	t.Run("valid command given, certificate created", func(t *testing.T) {
 		t.Parallel()
 
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
+		var c command.IssueCertificate
+		gofakeit.Struct(&c)
 
-		certificateID := gofakeit.UUID()
-		artistID := gofakeit.UUID()
-		title := gofakeit.Sentence(5)
-
-		want := &issuecert.Certificate{
-			ID:          certificateID,
-			ArtistID:    artistID,
-			ArtworkType: "painting",
-			Title:       title,
+		want := issuecert.Certificate{
+			ID:          c.ID,
+			Title:       c.Title,
+			ArtistID:    c.ArtistID,
+			ArtworkType: c.ArtworkType,
 		}
 
-		certStorage := createCertStorage(ctrl, want)
-		handler := issuecert.NewHandler(certStorage).Handle
+		certStorage := CertStorageSpy{
+			Fn: func(ctx context.Context, c *issuecert.Certificate) error {
+				*c = want
+
+				return nil
+			},
+		}
+
+		sut := issuecert.NewHandler(certStorage).Handle
 
 		Test(t)(
-			Given("IssueCertificate", handler),
-			When(context.Background(), command.IssueCertificate{
-				ID:          certificateID,
-				ArtistID:    artistID,
-				ArtworkType: "painting",
-				Title:       title,
-			}),
+			Given("IssueCertificate", sut),
+			When(context.Background(), c),
 			ThenOk(),
 		)
 	})
@@ -52,43 +48,29 @@ func TestIssueCertificate(t *testing.T) {
 	t.Run("it returns an error if it fails to store a certificate", func(t *testing.T) {
 		t.Parallel()
 
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
+		var c command.IssueCertificate
+		gofakeit.Struct(&c)
 
-		certificateID := gofakeit.UUID()
-		artistID := gofakeit.UUID()
-		title := gofakeit.Sentence(5)
+		certStorage := CertStorageSpy{
+			Fn: func(ctx context.Context, c *issuecert.Certificate) error {
+				return storage.ErrCannotStoreCertificate
+			},
+		}
 
-		certStorage := createFaultyCertStorage(ctrl, storage.ErrCannotStoreCertificate)
-		handler := issuecert.NewHandler(certStorage).Handle
+		sut := issuecert.NewHandler(certStorage).Handle
 
 		Test(t)(
-			Given("IssueCertificate", handler),
-			When(context.Background(), command.IssueCertificate{
-				ID:          certificateID,
-				ArtistID:    artistID,
-				ArtworkType: "painting",
-				Title:       title,
-			}),
+			Given("IssueCertificate", sut),
+			When(context.Background(), c),
 			ThenFailWith(storage.ErrCannotStoreCertificate),
 		)
 	})
 }
 
-func createCertStorage(ctrl *gomock.Controller, want *issuecert.Certificate) *mock.MockCertStorage {
-	certStorage := mock.NewMockCertStorage(ctrl)
-	certStorage.EXPECT().
-		Store(context.Background(), want).
-		Return(nil)
-
-	return certStorage
+type CertStorageSpy struct {
+	Fn func(ctx context.Context, c *issuecert.Certificate) error
 }
 
-func createFaultyCertStorage(ctrl *gomock.Controller, err error) *mock.MockCertStorage {
-	certStorage := mock.NewMockCertStorage(ctrl)
-	certStorage.EXPECT().
-		Store(context.Background(), gomock.Any()).
-		Return(err)
-
-	return certStorage
+func (s CertStorageSpy) Store(ctx context.Context, c *issuecert.Certificate) error {
+	return s.Fn(ctx, c)
 }

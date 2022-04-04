@@ -78,13 +78,6 @@ lint-all: ## run linters on the whole project
 	@echo "$(OK_COLOR)==> Linting$(NO_COLOR)"
 	golangci-lint run ./... --new-from-rev=""
 
-mock-gen: ## generate mocks
-	@echo "$(OK_COLOR)--> Generating mocks$(NO_COLOR)"
-	tools/bin/mockgen -source=pkg/cert/usecase/viewcert/view_certificate.go -package=mock -destination=pkg/cert/mock/cert_reporter_mock.go
-	tools/bin/mockgen -source=pkg/cert/usecase/issuecert/issue_certificate.go -package=mock -destination=pkg/cert/mock/cert_storage_mock.go
-	tools/bin/mockgen -source=vendor/github.com/screwyprof/golibs/queryer/queryer.go -package mock -destination=internal/pkg/delivery/rest/mock/queryer_mock.go
-	tools/bin/mockgen -source=vendor/github.com/screwyprof/golibs/cmdhandler/command_handler.go -package mock -destination=internal/pkg/delivery/rest/mock/command_handler_mock.go
-             
 test: test-unit test-integration test-e2e # run all tests
 
 test-docker: ## run all tests in with docker-compose
@@ -135,5 +128,5 @@ help: ## show this help
 # unless there is a reason not to.
 # https://www.gnu.org/software/make/manual/html_node/Phony-Targets.html
 .PHONY: all ci-all deps install-tools build build-ci run lint lint all
-.PHONY: mock-gen test test-local test-unit test-integration test-e2e test-ci
+.PHONY: test test-local test-unit test-integration test-e2e test-ci
 .PHONY: fmt clean version help
