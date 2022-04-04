@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/screwyprof/skeleton/pkg/cert/command"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/issuecert"
+	"github.com/screwyprof/skeleton/cert/command"
+	"github.com/screwyprof/skeleton/cert/usecase/issuecert"
 )
 
 func TestIssueCertificate(t *testing.T) {

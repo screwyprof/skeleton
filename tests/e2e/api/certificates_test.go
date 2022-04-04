@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"github.com/screwyprof/skeleton/internal/pkg/delivery/restclient"
+	"github.com/screwyprof/skeleton/internal/delivery/restclient"
 	"github.com/screwyprof/skeleton/tests/e2e/app"
 )
 

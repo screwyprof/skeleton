@@ -7,9 +7,9 @@ import (
 
 	"github.com/brianvoe/gofakeit/v4"
 
-	"github.com/screwyprof/skeleton/pkg/cert/report"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/issuecert"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/storage"
+	"github.com/screwyprof/skeleton/cert/report"
+	"github.com/screwyprof/skeleton/cert/usecase/issuecert"
+	"github.com/screwyprof/skeleton/cert/usecase/storage"
 )
 
 func (s *TestSuite) TestCertificateByID_CertificateExists_CertificateReturned() {

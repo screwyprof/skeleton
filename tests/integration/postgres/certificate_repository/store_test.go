@@ -8,9 +8,9 @@ import (
 
 	"github.com/brianvoe/gofakeit/v4"
 
-	"github.com/screwyprof/skeleton/internal/pkg/adapter/postgres/model"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/issuecert"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/storage"
+	"github.com/screwyprof/skeleton/cert/usecase/issuecert"
+	"github.com/screwyprof/skeleton/cert/usecase/storage"
+	"github.com/screwyprof/skeleton/internal/adapter/postgres/model"
 )
 
 func (s *TestSuite) TestStore_ValidDataGiven_CertificateCreated() {

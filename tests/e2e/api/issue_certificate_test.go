@@ -6,8 +6,8 @@ package api_test
 import (
 	"github.com/brianvoe/gofakeit/v4"
 
-	"github.com/screwyprof/skeleton/internal/pkg/delivery/rest/req"
-	"github.com/screwyprof/skeleton/internal/pkg/delivery/rest/resp"
+	"github.com/screwyprof/skeleton/internal/delivery/rest/req"
+	"github.com/screwyprof/skeleton/internal/delivery/rest/resp"
 )
 
 func (s *TestSuite) TestIssueCertificate() {

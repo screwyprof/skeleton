@@ -6,7 +6,7 @@ package issuecert_test
 import (
 	"context"
 
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/issuecert"
+	"github.com/screwyprof/skeleton/cert/usecase/issuecert"
 )
 
 type CertStorageSpy struct {

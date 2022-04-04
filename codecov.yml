@@ -1,5 +1,4 @@
 ignore:
   - "**/*_mock.go"  # ignore mock files
-  - "internal/pkg/app"
-  - "internal/pkg/adapter/fake"
-  - "internal/pkg/delivery/restclient"
+  - "internal/app"
+  - "internal/delivery/restclient"

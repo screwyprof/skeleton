@@ -6,7 +6,7 @@ package viewcert_test
 import (
 	"context"
 
-	"github.com/screwyprof/skeleton/pkg/cert/report"
+	"github.com/screwyprof/skeleton/cert/report"
 )
 
 type CertReporterWithValidCertificateStub struct {

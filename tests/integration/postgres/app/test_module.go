@@ -7,10 +7,10 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/screwyprof/skeleton/internal/pkg/app/fxlogger"
-	"github.com/screwyprof/skeleton/internal/pkg/app/modcfg"
-	"github.com/screwyprof/skeleton/internal/pkg/app/modrel"
-	"github.com/screwyprof/skeleton/internal/pkg/app/modzap"
+	"github.com/screwyprof/skeleton/internal/app/fxlogger"
+	"github.com/screwyprof/skeleton/internal/app/modcfg"
+	"github.com/screwyprof/skeleton/internal/app/modrel"
+	"github.com/screwyprof/skeleton/internal/app/modzap"
 )
 
 var TestModule fx.Option
