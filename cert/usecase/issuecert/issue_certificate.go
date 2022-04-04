@@ -5,7 +5,7 @@ import (
 
 	"github.com/ansel1/merry/v2"
 
-	"github.com/screwyprof/skeleton/pkg/cert/command"
+	"github.com/screwyprof/skeleton/cert/command"
 )
 
 type CertIssuer struct {

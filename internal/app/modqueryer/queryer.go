@@ -4,7 +4,7 @@ import (
 	"github.com/screwyprof/golibs/queryer"
 	"go.uber.org/fx"
 
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/viewcert"
+	"github.com/screwyprof/skeleton/cert/usecase/viewcert"
 )
 
 var Module = fx.Provide(

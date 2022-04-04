@@ -10,7 +10,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 
-	issuecert "github.com/screwyprof/skeleton/pkg/cert/usecase/issuecert"
+	issuecert "github.com/screwyprof/skeleton/cert/usecase/issuecert"
 )
 
 // MockCertStorage is a mock of CertStorage interface

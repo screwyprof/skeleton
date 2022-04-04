@@ -10,7 +10,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 
-	report "github.com/screwyprof/skeleton/pkg/cert/report"
+	report "github.com/screwyprof/skeleton/cert/report"
 )
 
 // MockCertReporter is a mock of CertReporter interface

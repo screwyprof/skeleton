@@ -4,9 +4,9 @@ import (
 	"github.com/go-rel/rel"
 	"go.uber.org/fx"
 
+	"github.com/screwyprof/skeleton/cert/usecase/issuecert"
+	"github.com/screwyprof/skeleton/cert/usecase/viewcert"
 	"github.com/screwyprof/skeleton/internal/adapter/postgres"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/issuecert"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/viewcert"
 )
 
 var Module = fx.Provide(

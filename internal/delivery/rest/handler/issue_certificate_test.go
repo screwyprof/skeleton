@@ -10,15 +10,15 @@ import (
 	"github.com/screwyprof/golibs/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/screwyprof/skeleton/cert/command"
+	"github.com/screwyprof/skeleton/cert/query"
+	"github.com/screwyprof/skeleton/cert/report"
+	"github.com/screwyprof/skeleton/cert/usecase/storage"
 	"github.com/screwyprof/skeleton/internal/delivery/rest/apierr"
 	"github.com/screwyprof/skeleton/internal/delivery/rest/handler"
 	"github.com/screwyprof/skeleton/internal/delivery/rest/mock"
 	"github.com/screwyprof/skeleton/internal/delivery/rest/req"
 	"github.com/screwyprof/skeleton/internal/delivery/rest/resp"
-	"github.com/screwyprof/skeleton/pkg/cert/command"
-	"github.com/screwyprof/skeleton/pkg/cert/query"
-	"github.com/screwyprof/skeleton/pkg/cert/report"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/storage"
 )
 
 func TestCertificateIssuer_Handle(t *testing.T) {

@@ -8,10 +8,10 @@ import (
 	"github.com/go-rel/rel"
 	"github.com/go-rel/rel/where"
 
+	"github.com/screwyprof/skeleton/cert/report"
+	"github.com/screwyprof/skeleton/cert/usecase/issuecert"
+	"github.com/screwyprof/skeleton/cert/usecase/storage"
 	"github.com/screwyprof/skeleton/internal/adapter/postgres/model"
-	"github.com/screwyprof/skeleton/pkg/cert/report"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/issuecert"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/storage"
 )
 
 type CertificateRepository struct {

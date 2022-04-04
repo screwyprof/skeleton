@@ -6,12 +6,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/screwyprof/golibs/queryer"
 
+	"github.com/screwyprof/skeleton/cert/query"
+	"github.com/screwyprof/skeleton/cert/report"
+	"github.com/screwyprof/skeleton/cert/usecase/storage"
 	"github.com/screwyprof/skeleton/internal/delivery/rest/apierr"
 	"github.com/screwyprof/skeleton/internal/delivery/rest/req"
 	"github.com/screwyprof/skeleton/internal/delivery/rest/resp"
-	"github.com/screwyprof/skeleton/pkg/cert/query"
-	"github.com/screwyprof/skeleton/pkg/cert/report"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/storage"
 )
 
 type CertificateViewer struct {

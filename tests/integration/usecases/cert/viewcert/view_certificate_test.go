@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/screwyprof/skeleton/pkg/cert/query"
-	"github.com/screwyprof/skeleton/pkg/cert/report"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/viewcert"
+	"github.com/screwyprof/skeleton/cert/query"
+	"github.com/screwyprof/skeleton/cert/report"
+	"github.com/screwyprof/skeleton/cert/usecase/viewcert"
 )
 
 func TestViewCertificate(t *testing.T) {

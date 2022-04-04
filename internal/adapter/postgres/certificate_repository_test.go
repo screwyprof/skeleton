@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/screwyprof/skeleton/cert/report"
+	"github.com/screwyprof/skeleton/cert/usecase/issuecert"
+	"github.com/screwyprof/skeleton/cert/usecase/storage"
 	"github.com/screwyprof/skeleton/internal/adapter/postgres"
 	"github.com/screwyprof/skeleton/internal/adapter/postgres/model"
-	"github.com/screwyprof/skeleton/pkg/cert/report"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/issuecert"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/storage"
 )
 
 var ErrUnknownFailure = errors.New("unknown failure")

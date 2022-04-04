@@ -4,7 +4,7 @@ import (
 	"github.com/screwyprof/golibs/cmdhandler"
 	"go.uber.org/fx"
 
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/issuecert"
+	"github.com/screwyprof/skeleton/cert/usecase/issuecert"
 )
 
 var Module = fx.Provide(

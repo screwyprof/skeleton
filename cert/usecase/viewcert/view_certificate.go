@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/screwyprof/skeleton/pkg/cert/query"
-	"github.com/screwyprof/skeleton/pkg/cert/report"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/storage"
+	"github.com/screwyprof/skeleton/cert/query"
+	"github.com/screwyprof/skeleton/cert/report"
+	"github.com/screwyprof/skeleton/cert/usecase/storage"
 )
 
 type CertReporter interface {

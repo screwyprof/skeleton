@@ -8,10 +8,10 @@ import (
 	"github.com/golang/mock/gomock"
 	. "github.com/screwyprof/golibs/cmdhandler/testdsl"
 
-	"github.com/screwyprof/skeleton/pkg/cert/command"
-	"github.com/screwyprof/skeleton/pkg/cert/mock"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/issuecert"
-	"github.com/screwyprof/skeleton/pkg/cert/usecase/storage"
+	"github.com/screwyprof/skeleton/cert/command"
+	"github.com/screwyprof/skeleton/cert/mock"
+	"github.com/screwyprof/skeleton/cert/usecase/issuecert"
+	"github.com/screwyprof/skeleton/cert/usecase/storage"
 )
 
 func TestIssueCertificate(t *testing.T) {
