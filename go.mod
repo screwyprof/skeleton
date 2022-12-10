@@ -1,8 +1,8 @@
-// +heroku goVersion 1.18
+// +heroku goVersion 1.19ß
 
 module github.com/screwyprof/skeleton
 
-go 1.18
+go 1.19
 
 require (
 	github.com/ansel1/merry/v2 v2.0.1

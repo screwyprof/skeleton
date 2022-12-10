@@ -1,7 +1,7 @@
 run:
   deadline: 20m
   skip-dirs-use-default: true
-  go: '1.18'
+  go: '1.19'
 
 modules-download-mode: readonly
 

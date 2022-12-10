@@ -1,15 +1,15 @@
 name: Go
-on: [pull_request]
+on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
       GO111MODULE: on
     steps:
-    - name: Set up Go 1.18
+    - name: Set up Go 1.19
       uses: actions/setup-go@v3
       with:
-        go-version: 1.18
+        go-version: 1.19
       id: go
 
     - name: Check out code into the Go module directory
@@ -53,7 +53,7 @@ jobs:
       - name: Setup go
         uses: actions/setup-go@v3
         with:
-          go-version: '1.18'
+          go-version: '1.19'
 
       - name: Run tests
         env:
